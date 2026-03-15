@@ -1,0 +1,49 @@
+{
+  "erc": {
+    "category_col": "Category",
+    "sub_category_col": "Sub-category",
+    "main_category_filter": "PC Components",
+    "name_col": "Name",
+    "brand_col": "Brand",
+    "price_cols": ["PROMO PRICE GEL", "PRICE GEL"],
+    "rrp_cols": ["Promo RRP GEL", "RRP GEL"],
+    "quantity_col": "Quantity"
+  },
+  "oasis": {
+    "category_col": "TYPE",
+    "sub_category_col": "TYPE",
+    "keywords": {
+      "Processors": ["cpu", "processor"],
+      "Cooling": ["cooler", "fan"],
+      "Video Cards": ["graphic card", "vga", "gpu"],
+      "Motherboards": ["motherboard", "mb"],
+      "PSU": ["psu", "power supply"],
+      "RAM": ["ram", "memory"],
+      "Storage": ["hdd", "ssd", "m.2"]
+    },
+    "name_col": "PRODUCT NAME",
+    "brand_col": "Brand",
+    "price_cols": ["GEL"],
+    "rrp_cols": [],
+    "quantity_col": null
+  },
+  "vrtx": {
+    "category_col": "კატეგორია",
+    "sub_category_col": "ქვეკატეგორია",
+    "main_category_filter": null,
+    "keywords": {
+      "Processors": ["პროცესორები", "cpu"],
+      "Video Cards": ["ვიდეო დაფები", "vga", "gpu"],
+      "Motherboards": ["დედა დაფები", "motherboard"],
+      "PSU": ["კვების ბლოკები", "psu"],
+      "Cooling": ["ქულერები", "fan", "cooler"],
+      "Cases": ["ქეისები", "case"],
+      "Storage": ["მყარი დისკები", "ssd", "hdd", "nvme"]
+    },
+    "name_col": "დასახელება",
+    "brand_col": "ბრენდი",
+    "price_cols": ["სტ. ფასი"],
+    "rrp_cols": ["RRP ფასი"],
+    "quantity_col": "რაოდენობა"
+  }
+}
