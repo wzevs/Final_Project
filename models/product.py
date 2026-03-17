@@ -8,7 +8,8 @@ class Product:
     quantity: int
     price: float
     rrp_price: float
-    category: str  # აქ შეინახება ქვეკატეგორია ან იდენტიფიცირებული ტიპი
+    category: str
+    distributor: str = "Unknown"
 
     def validate(self):
         # სახელის ვალიდაცია

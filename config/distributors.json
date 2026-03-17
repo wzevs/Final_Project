@@ -3,6 +3,16 @@
     "category_col": "Category",
     "sub_category_col": "Sub-category",
     "main_category_filter": "PC Components",
+    "sub_category_keywords": {
+      "Cooling": ["fan", "cooling", "cooler", "ქულერი"],
+      "Cases": ["computer case", "chassis", "tower", "ქეისი"],
+      "Processors": ["processor", "cpu"],
+      "Video Cards": ["video card", "graphic card", "vga"],
+      "Motherboards": ["motherboard", "mb"],
+      "Storage": ["ssd", "hdd", "solid state drive"],
+      "RAM": ["memory module", "ram"],
+      "PSU": ["power supply", "psu"]
+    },
     "name_col": "Name",
     "brand_col": "Brand",
     "price_cols": ["PROMO PRICE GEL", "PRICE GEL"],

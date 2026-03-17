@@ -1,71 +1,98 @@
-import argparse
+import streamlit as st
+import pandas as pd
 import os
 from database.database_manager import DatabaseManager
 from services.product_service import ProductService
-from utils.logger import logger
-from api_clients.gitec_client import GitecClient  # შევასწორე სახელი კლასის მიხედვით
+from api_clients.gitec_client import GitecClient
+from dotenv import load_dotenv
+
+# ტვირთავს .env ფაილს (პაროლებისთვის)
+load_dotenv()
+
+# გვერდის კონფიგურაცია
+st.set_page_config(page_title="Inventory Manager", layout="wide", page_icon="🖥️")
+
+st.title("🖥️ კომპიუტერული ნაწილების ინვენტარი")
+st.write("მონაცემების სინქრონიზაცია და ჩვენება (GITEC + Excel)")
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Inventory Import Tool")
-    parser.add_argument("path", help="Path to the Excel file or folder containing files")
-    args = parser.parse_args()
-
+@st.cache_data(ttl=600)  # მონაცემები განახლდება ყოველ 10 წუთში
+def sync_and_load_data():
+    """ამ ფუნქციას შემოაქვს მონაცემები ბაზაში და მერე კითხულობს მათ საჩვენებლად"""
     try:
-        # 1. ინიციალიზაცია
         db = DatabaseManager()
         service = ProductService(db)
 
-        # 2. ექსელების იმპორტის ლოგიკა
-        if os.path.isdir(args.path):
-            print(f"📂 აღმოჩენილია საქაღალდე. ვიწყებ სკანირებას: {args.path}")
-            service.import_all_from_folder(args.path)
-        elif os.path.isfile(args.path):
-            service.import_from_excel(args.path)
-        else:
-            print(f"❌ შეცდომა: მითითებული გზა '{args.path}' არასწორია.")
-            # აქ არ ვაჩერებთ, რომ API მაინც გაეშვას თუ საჭიროა
+        # 1. Excel ფაილების იმპორტი (თუ საქაღალდე არსებობს)
+        data_path = "data/distributor_files/"
+        if os.path.exists(data_path):
+            with st.spinner('Excel ფაილების იმპორტი ბაზაში...'):
+                service.import_all_from_folder(data_path)
 
-        # --- 3. GITEC API ტესტირება და იმპორტი ---
-        print("\n🌐 ვუკავშირდები GITEC API-ს...")
+        # 2. GITEC API-დან წამოღება და ბაზაში შენახვა
+        with st.spinner('GITEC API-სთან სინქრონიზაცია...'):
+            gitec = GitecClient()
+            gitec_prods = gitec.fetch_products()
+            if gitec_prods:
+                db.save_products(gitec_prods, "gitec")
 
-        # ⚠️ ჩაწერე შენი ნამდვილი მონაცემები აქ:
-        gitec = GitecClient(username="შენი_იუზერი", password="შენი_პაროლი")
-        gitec_products = gitec.fetch_products()
+        # 3. ყველა მონაცემის წამოღება ბაზიდან საჩვენებლად
+        # ვიყენებთ შენს db მენეჯერს, რომ ყველაფერი ერთიანად წამოვიღოთ
+        query = "SELECT category, name, price, quantity, distributor FROM products"
+        # შენი DatabaseManager-ის მიხედვით, შეიძლება დაგჭირდეს db.execute_query ან მსგავსი
+        # თუ db.get_all_products() არ გაქვს, გამოვიყენოთ SQLite-ის პირდაპირი წაკითხვა:
+        import sqlite3
+        conn = sqlite3.connect(db.db_path)
+        df = pd.read_sql_query(query, conn)
+        conn.close()
 
-        if gitec_products:
-            print(f"✅ API ტესტი წარმატებულია! წამოღებულია {len(gitec_products)} პროდუქტი.")
-            db.save_products(gitec_products, "gitec")
-        else:
-            print("❌ API-დან მონაცემები ვერ წამოვიდა (შეამოწმეთ ლოგები ან პაროლები).")
-
-        # 4. შედეგების გამოტანა (უკვე გაერთიანებული ბაზიდან)
-        print("\n💰 ტოპ 10 ყველაზე ძვირიანი კომპონენტი ბაზიდან:")
-        top_products = db.get_top_expensive_products(10)
-
-        if not top_products:
-            print("⚠️ ბაზაში მონაცემები ვერ მოიძებნა.")
-        else:
-            header = f"{'კატეგორია':<20} | {'დასახელება':<45} | {'ფასი':<10} | {'რაოდენობა':<6} | {'მომწოდებელი':<10}"
-            print(header)
-            print("-" * len(header))
-
-            for row in top_products:
-                category = row['category'][:18] if row['category'] else "N/A"
-                raw_name = row['name']
-                name = (raw_name[:42] + "...") if len(raw_name) > 42 else raw_name
-                price = row['price']
-                quantity = row['quantity']
-                distributor = row['distributor'].upper() if row['distributor'] else "N/A"
-
-                print(f"{category:<20} | {name:<45} | {price:>8.2f} | {quantity:^6} | {distributor:<10}")
-
-        print("\n✅ პროცესი დასრულდა.")
+        return df
 
     except Exception as e:
-        logger.error(f"კრიტიკული შეცდომა main-ში: {e}")
-        print(f"❌ მოხდა შეცდომა. დეტალები იხილეთ ლოგებში.")
+        st.error(f"შეცდომა მონაცემების დამუშავებისას: {e}")
+        return pd.DataFrame()
 
 
-if __name__ == "__main__":
-    main()
+# მონაცემების ჩატვირთვა
+df = sync_and_load_data()
+
+if df.empty:
+    st.warning("ბაზა ცარიელია ან მოხდა შეცდომა ჩატვირთვისას.")
+else:
+    # სვეტების სახელების ქართულად გადარქმევა საჩვენებლად
+    df.columns = ["კატეგორია", "დასახელება", "ფასი", "რაოდენობა", "მომწოდებელი"]
+
+    # --- Sidebar ფილტრები ---
+    st.sidebar.header("🔍 ფილტრაცია")
+
+    distributors = st.sidebar.multiselect("მომწოდებელი:", df["მომწოდებელი"].unique(),
+                                          default=df["მომწოდებელი"].unique())
+    categories = st.sidebar.multiselect("კატეგორია:", df["კატეგორია"].unique(), default=df["კატეგორია"].unique())
+    search_query = st.text_input("მოძებნე პროდუქტი:", "")
+
+    # ფილტრაცია
+    filtered_df = df[
+        (df["მომწოდებელი"].isin(distributors)) &
+        (df["კატეგორია"].isin(categories))
+        ]
+
+    if search_query:
+        filtered_df = filtered_df[filtered_df["დასახელება"].str.contains(search_query, case=False, na=False)]
+
+    # --- Metrics ---
+    c1, c2, c3 = st.columns(3)
+    c1.metric("ჯამური მოდელები", len(filtered_df))
+    c2.metric("საშუალო ფასი", f"{round(filtered_df['ფასი'].mean(), 2)} ₾")
+    c3.metric("საერთო მარაგი", int(filtered_df["რაოდენობა"].sum()))
+
+    # --- ცხრილი ---
+    st.subheader("ინვენტარის სრული სია")
+    st.dataframe(
+        filtered_df.sort_values(by="ფასი", ascending=False),
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # ჩამოტვირთვის ღილაკი
+    csv = filtered_df.to_csv(index=False).encode('utf-8-sig')
+    st.download_button("📥 ჩამოტვირთე სია (CSV)", csv, "inventory.csv", "text/csv")
