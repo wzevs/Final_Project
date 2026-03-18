@@ -60,3 +60,36 @@ class DatabaseManager:
         with self._get_connection() as conn:
             cursor = conn.execute(query, (limit,))
             return cursor.fetchall()
+
+    def create_user_table(self):
+        """ქმნის მომხმარებლების ცხრილს, თუ ის არ არსებობს"""
+        query = """
+        CREATE TABLE IF NOT EXISTS users (
+            username TEXT PRIMARY KEY,
+            email TEXT,
+            name TEXT,
+            password TEXT,
+            role TEXT DEFAULT 'user'
+        )
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(query)
+            # logger.info("მომხმარებლების ცხრილი მზად არის.")
+        except Exception as e:
+            logger.error(f"შეცდომა users ცხრილის შექმნისას: {e}")
+
+    def add_user(self, username, email, name, hashed_password):
+        """ახალი მომხმარებლის ბაზაში ჩაწერა"""
+        query = "INSERT INTO users (username, email, name, password) VALUES (?, ?, ?, ?)"
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(query, (username, email, name, hashed_password))
+            logger.info(f"ახალი მომხმარებელი დარეგისტრირდა: {username}")
+            return True
+        except sqlite3.IntegrityError:
+            logger.warning(f"მომხმარებელი {username} უკვე არსებობს ბაზაში.")
+            return False
+        except Exception as e:
+            logger.error(f"შეცდომა მომხმარებლის დამატებისას: {e}")
+            return False

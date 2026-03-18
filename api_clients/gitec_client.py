@@ -22,7 +22,7 @@ class GitecClient:
         self.category_map = {
             # 1. Cooling გადმოვიტანეთ წინ და დავამატეთ ქართული ტერმინი
             "Cooling": ["ქეისის ქულერი", "cooler", "fan", "heatsink", "ქულერი", "lga1700", "am4", "am5"],
-            "Processors": ["cpu", "processor", "intel core", "amd ryzen", "i3-", "i5-", "i7-", "i9-", "პროცესორი"],
+            "Processors": ["cpu", "processor", "intel core", "amd ryzen", "პროცესორი"],
             "Video Cards": ["vga", "gpu", "geforce", "nvidia", "radeon", "rtx", "gtx", "rx ", "ვიდეო ბარათი"],
             "Motherboards": ["motherboard", "mb ", " h610", " b760", " z790", " a620", " b650", "დედა დაფა"],
             "Storage": ["ssd", "hdd", "nvme", "m.2", "sata", "internal drive", "მყარი დისკი"],
