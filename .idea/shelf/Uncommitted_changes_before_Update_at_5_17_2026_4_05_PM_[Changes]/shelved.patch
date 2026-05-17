@@ -1,0 +1,1233 @@
+Index: api_clients/gitec_client.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import requests\r\nimport json\r\nimport re\r\nfrom models.product import Product\r\nfrom utils.logger import logger\r\n\r\n\r\nclass GitecClient:\r\n    def __init__(self, username, password):\r\n        self.base_url = \"https://b2b.gitec.ge/restapi/products\"\r\n        self.headers = {\r\n            \"username\": \"sales@geekspot.ge\",\r\n            \"password\": \"qazaq123\"\r\n        }\r\n        # GITEC-ისთვის მორგებული საკვანძო სიტყვები\r\n        self.category_map = {\r\n            \"Processors\": [\"cpu\", \"processor\", \"intel core\", \"amd ryzen\", \"i3-\", \"i5-\", \"i7-\", \"i9-\", \"პროცესორი\"],\r\n            \"Video Cards\": [\"vga\", \"gpu\", \"geforce\", \"nvidia\", \"radeon\", \"rtx\", \"gtx\", \"rx \", \"ვიდეო ბარათი\"],\r\n            \"Motherboards\": [\"motherboard\", \"mb \", \" h610\", \" b760\", \" z790\", \" a620\", \" b650\", \"დედა დაფა\"],\r\n            \"Storage\": [\"ssd\", \"hdd\", \"nvme\", \"m.2\", \"sata\", \"internal drive\", \"მყარი დისკი\"],\r\n            \"PSU\": [\"psu\", \"power supply\", \"კვების ბლოკი\", \" 500w\", \" 600w\", \" 750w\", \" 850w\"],\r\n            \"RAM\": [\"ram \", \"memory\", \"ddr4\", \"ddr5\", \"dimm\", \"ოპერატიული\"],\r\n            \"Cases\": [\"case\", \"chassis\", \"tower\", \"ქეისი\"],\r\n            \"Cooling\": [\"cooler\", \"fan\", \"heatsink\", \"ქულერი\", \"lga1700\", \"am4\", \"am5\"]\r\n        }\r\n\r\n    def _identify_category(self, name: str) -> str:\r\n        \"\"\"აკლასიფიცირებს პროდუქტს დასახელების მიხედვით\"\"\"\r\n        name_low = name.lower()\r\n        for category, keywords in self.category_map.items():\r\n            if any(kw in name_low for kw in keywords):\r\n                return category\r\n        return \"Other\"\r\n\r\n    def fetch_products(self) -> list[Product]:\r\n        logger.info(\"GITEC API-დან მონაცემების წამოღება დაიწყო...\")\r\n        try:\r\n            # ენის პარამეტრი ქართული ინფორმაციისთვის\r\n            response = requests.get(\r\n                self.base_url,\r\n                headers=self.headers,\r\n                params={\"language\": \"ge\"}\r\n            )\r\n            response.raise_for_status()\r\n            data = response.json()\r\n\r\n            products = []\r\n            for item in data:\r\n                name = item.get(\"Name\", \"\")\r\n\r\n                # 1. ფასის ამოღება (PriceValue ყველაზე ზუსტია)\r\n                price_info = item.get(\"ProductPrice\", {})\r\n                price_value = price_info.get(\"PriceValue\", 0)\r\n\r\n                # 2. რაოდენობის ამოღება CustomProperties-დან\r\n                custom_props = item.get(\"CustomProperties\", {})\r\n\r\n                # ვამოწმებთ ორივე შესაძლო სპელინგს (ll და l)\r\n                qty_raw = (\r\n                        custom_props.get(\"Available Quantity\") or\r\n                        custom_props.get(\"Avaliable Quantity\") or\r\n                        \"0\"\r\n                )\r\n\r\n                # სტრინგის (\"6\") გარდაქმნა რიცხვად (int)\r\n                try:\r\n                    # ჯერ float-ად, რადგან შეიძლება ეწეროს \"6.0\"\r\n                    quantity = int(float(str(qty_raw).replace(',', '.')))\r\n                except (ValueError, TypeError):\r\n                    quantity = 0\r\n\r\n                # 3. კატეგორიზაცია\r\n                category = self._identify_category(name)\r\n\r\n                # ვამატებთ მხოლოდ იმ პროდუქტებს, რომლებიც ჩვენს კატეგორიებში მოხვდა\r\n                if category != \"Other\":\r\n                    p = Product(\r\n                        brand=\"GITEC\",\r\n                        name=name,\r\n                        quantity=quantity,\r\n                        price=float(price_value) if price_value else 0.0,\r\n                        rrp_price=0.0,\r\n                        category=category\r\n                    )\r\n                    products.append(p)\r\n\r\n            logger.info(f\"GITEC API: წარმატებით დამუშავდა {len(products)} კომპონენტი.\")\r\n            return products\r\n\r\n        except Exception as e:\r\n            logger.error(f\"GITEC API შეცდომა: {e}\")\r\n            return []
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/api_clients/gitec_client.py b/api_clients/gitec_client.py
+--- a/api_clients/gitec_client.py	(revision e201dbc30b6331e0693457572895750860dd782b)
++++ b/api_clients/gitec_client.py	(date 1777930608793)
+@@ -1,27 +1,34 @@
++import os
+ import requests
+-import json
+-import re
++from dotenv import load_dotenv
+ from models.product import Product
+ from utils.logger import logger
+ 
++# ტვირთავს მონაცემებს .env ფაილიდან
++load_dotenv()
++
+ 
+ class GitecClient:
+-    def __init__(self, username, password):
++    def __init__(self):
+         self.base_url = "https://b2b.gitec.ge/restapi/products"
++
++        # მონაცემები მოაქვს .env-დან, თუ იქ არ არის - იყენებს ცარიელ სტრინგს
+         self.headers = {
+-            "username": "sales@geekspot.ge",
+-            "password": "qazaq123"
++            "username": os.getenv("GITEC_USERNAME", ""),
++            "password": os.getenv("GITEC_PASSWORD", "")
+         }
++
+         # GITEC-ისთვის მორგებული საკვანძო სიტყვები
+         self.category_map = {
+-            "Processors": ["cpu", "processor", "intel core", "amd ryzen", "i3-", "i5-", "i7-", "i9-", "პროცესორი"],
++            # 1. Cooling გადმოვიტანეთ წინ და დავამატეთ ქართული ტერმინი
++            "Cooling": ["ქეისის ქულერი", "cooler", "fan", "heatsink", "ქულერი", "lga1700", "am4", "am5"],
++            "Processors": ["cpu", "processor", "intel core", "amd ryzen", "პროცესორი"],
+             "Video Cards": ["vga", "gpu", "geforce", "nvidia", "radeon", "rtx", "gtx", "rx ", "ვიდეო ბარათი"],
+             "Motherboards": ["motherboard", "mb ", " h610", " b760", " z790", " a620", " b650", "დედა დაფა"],
+             "Storage": ["ssd", "hdd", "nvme", "m.2", "sata", "internal drive", "მყარი დისკი"],
+             "PSU": ["psu", "power supply", "კვების ბლოკი", " 500w", " 600w", " 750w", " 850w"],
+             "RAM": ["ram ", "memory", "ddr4", "ddr5", "dimm", "ოპერატიული"],
+-            "Cases": ["case", "chassis", "tower", "ქეისი"],
+-            "Cooling": ["cooler", "fan", "heatsink", "ქულერი", "lga1700", "am4", "am5"]
++            "Cases": ["case", "chassis", "tower", "ქეისი"]
+         }
+ 
+     def _identify_category(self, name: str) -> str:
+@@ -35,7 +42,6 @@
+     def fetch_products(self) -> list[Product]:
+         logger.info("GITEC API-დან მონაცემების წამოღება დაიწყო...")
+         try:
+-            # ენის პარამეტრი ქართული ინფორმაციისთვის
+             response = requests.get(
+                 self.base_url,
+                 headers=self.headers,
+@@ -47,32 +53,23 @@
+             products = []
+             for item in data:
+                 name = item.get("Name", "")
+-
+-                # 1. ფასის ამოღება (PriceValue ყველაზე ზუსტია)
+                 price_info = item.get("ProductPrice", {})
+                 price_value = price_info.get("PriceValue", 0)
+ 
+-                # 2. რაოდენობის ამოღება CustomProperties-დან
+                 custom_props = item.get("CustomProperties", {})
+-
+-                # ვამოწმებთ ორივე შესაძლო სპელინგს (ll და l)
+                 qty_raw = (
+                         custom_props.get("Available Quantity") or
+                         custom_props.get("Avaliable Quantity") or
+                         "0"
+                 )
+ 
+-                # სტრინგის ("6") გარდაქმნა რიცხვად (int)
+                 try:
+-                    # ჯერ float-ად, რადგან შეიძლება ეწეროს "6.0"
+                     quantity = int(float(str(qty_raw).replace(',', '.')))
+                 except (ValueError, TypeError):
+                     quantity = 0
+ 
+-                # 3. კატეგორიზაცია
+                 category = self._identify_category(name)
+ 
+-                # ვამატებთ მხოლოდ იმ პროდუქტებს, რომლებიც ჩვენს კატეგორიებში მოხვდა
+                 if category != "Other":
+                     p = Product(
+                         brand="GITEC",
+@@ -89,4 +86,4 @@
+ 
+         except Exception as e:
+             logger.error(f"GITEC API შეცდომა: {e}")
+-            return []
+\ No newline at end of file
++            return []
+Index: database/database_manager.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import sqlite3\r\nfrom models.product import Product\r\nfrom utils.logger import logger\r\n\r\nclass DatabaseManager:\r\n    def __init__(self, db_path: str = \"inventory.db\"):\r\n        self.db_path = db_path\r\n        self._create_table()\r\n\r\n    def _get_connection(self):\r\n        conn = sqlite3.connect(self.db_path)\r\n        conn.row_factory = sqlite3.Row\r\n        return conn\r\n\r\n    def _create_table(self):\r\n        query = \"\"\"\r\n        CREATE TABLE IF NOT EXISTS products (\r\n            id INTEGER PRIMARY KEY AUTOINCREMENT,\r\n            brand TEXT,\r\n            name TEXT, \r\n            quantity INTEGER,\r\n            price REAL,\r\n            rrp_price REAL,\r\n            category TEXT,\r\n            distributor TEXT,\r\n            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\r\n            UNIQUE(name, distributor)\r\n        )\r\n        \"\"\"\r\n        with self._get_connection() as conn:\r\n            conn.execute(query)\r\n\r\n    def save_products(self, products: list[Product], distributor_name: str):\r\n        query = \"\"\"\r\n        INSERT INTO products (brand, name, quantity, price, rrp_price, category, distributor)\r\n        VALUES (?, ?, ?, ?, ?, ?, ?)\r\n        ON CONFLICT(name, distributor) DO UPDATE SET\r\n            quantity = excluded.quantity,\r\n            price = excluded.price,\r\n            rrp_price = excluded.rrp_price,\r\n            category = excluded.category,\r\n            last_updated = CURRENT_TIMESTAMP\r\n        \"\"\"\r\n        # ... (დანარჩენი კოდი)\r\n        saved_count = 0\r\n        with self._get_connection() as conn:\r\n            for p in products:\r\n                try:\r\n                    conn.execute(query, (\r\n                        p.brand, p.name, p.quantity, p.price,\r\n                        p.rrp_price, p.category, distributor_name\r\n                    ))\r\n                    saved_count += 1\r\n                except Exception as e:\r\n                    logger.error(f\"შეცდომა შენახვისას ({p.name}): {e}\")\r\n        logger.info(f\"ბაზაში აისახა {saved_count} პროდუქტი დისტრიბუტორისგან: {distributor_name}\")\r\n\r\n    def get_top_expensive_products(self, limit: int = 10):\r\n        query = \"SELECT name, price, quantity, category, distributor FROM products ORDER BY price DESC LIMIT ?\"\r\n        with self._get_connection() as conn:\r\n            cursor = conn.execute(query, (limit,))\r\n            return cursor.fetchall()
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/database/database_manager.py b/database/database_manager.py
+--- a/database/database_manager.py	(revision e201dbc30b6331e0693457572895750860dd782b)
++++ b/database/database_manager.py	(date 1779018391057)
+@@ -1,62 +1,143 @@
+ import sqlite3
+-from models.product import Product
++import os
++import pandas as pd
+ from utils.logger import logger
+ 
++
+ class DatabaseManager:
+-    def __init__(self, db_path: str = "inventory.db"):
++    def __init__(self, db_path="inventory.db"):
+         self.db_path = db_path
+-        self._create_table()
+ 
+-    def _get_connection(self):
+-        conn = sqlite3.connect(self.db_path)
+-        conn.row_factory = sqlite3.Row
+-        return conn
++    def create_user_table(self):
++        """ქმნის მომხმარებლებისა და პროდუქტების ცხრილებს, თუ არ არსებობს"""
++        try:
++            conn = sqlite3.connect(self.db_path)
++            cursor = conn.cursor()
++            cursor.execute("""
++                           CREATE TABLE IF NOT EXISTS users
++                           (
++                               username
++                               TEXT
++                               PRIMARY
++                               KEY,
++                               password
++                               TEXT
++                               NOT
++                               NULL,
++                               email
++                               TEXT
++                               NOT
++                               NULL,
++                               name
++                               TEXT
++                               NOT
++                               NULL
++                           )
++                           """)
++            cursor.execute("""
++                           CREATE TABLE IF NOT EXISTS products
++                           (
++                               id
++                               INTEGER
++                               PRIMARY
++                               KEY
++                               AUTOINCREMENT,
++                               category
++                               TEXT,
++                               name
++                               TEXT,
++                               price
++                               REAL,
++                               quantity
++                               INTEGER,
++                               distributor
++                               TEXT
++                           )
++                           """)
++            conn.commit()
++            conn.close()
++        except Exception as e:
++            logger.error(f"ცხრილების შექმნის შეცდომა: {e}")
++
++    def add_user(self, username, password, email, name):
++        """უსაფრთხოდ ამატებს ან აახლებს მომხმარებელს პარამეტრიზებული ქუერით"""
++        try:
++            conn = sqlite3.connect(self.db_path)
++            cursor = conn.cursor()
++            cursor.execute(
++                "INSERT OR REPLACE INTO users (username, password, email, name) VALUES (?, ?, ?, ?)",
++                (username, password, email, name)
++            )
++            conn.commit()
++            conn.close()
++            logger.info(f"მომხმარებელი {username} წარმატებით შეინახა ბაზაში.")
++        except Exception as e:
++            logger.error(f"მომხმარებლის ბაზაში ჩაწერის შეცდომა: {e}")
++
++    def save_products(self, products, distributor):
++        """აშლის ძველ პროდუქტებს კონკრეტული მომწოდებლისთვის და წერს ახლებს"""
++        try:
++            conn = sqlite3.connect(self.db_path)
++            cursor = conn.cursor()
++            cursor.execute("DELETE FROM products WHERE distributor = ?", (distributor,))
++
++            for p in products:
++                # მხარს უჭერს როგორც ობიექტს (p.name), ასევე დიქტს (p['name'])
++                p_cat = getattr(p, 'category', p.get('category') if isinstance(p, dict) else '')
++                p_name = getattr(p, 'name', p.get('name') if isinstance(p, dict) else '')
++                p_price = getattr(p, 'price', p.get('price') if isinstance(p, dict) else 0.0)
++                p_qty = getattr(p, 'quantity', p.get('quantity') if isinstance(p, dict) else 0)
++
++                cursor.execute(
++                    "INSERT INTO products (category, name, price, quantity, distributor) VALUES (?, ?, ?, ?, ?)",
++                    (p_cat, p_name, p_price, p_qty, distributor)
++                )
++            conn.commit()
++            conn.close()
++        except Exception as e:
++            logger.error(f"პროდუქტების ბაზაში შენახვის შეცდომა: {e}")
++
++    def get_all_users(self) -> dict:
++        """უსაფრთხოდ ამოაქვს ყველა მომხმარებელი ავტორიზაციის მენეჯერისთვის"""
++        try:
++            conn = sqlite3.connect(self.db_path)
++            conn.row_factory = sqlite3.Row
++            users = conn.execute("SELECT username, password, email, name FROM users").fetchall()
++            conn.close()
+ 
+-    def _create_table(self):
+-        query = """
+-        CREATE TABLE IF NOT EXISTS products (
+-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+-            brand TEXT,
+-            name TEXT, 
+-            quantity INTEGER,
+-            price REAL,
+-            rrp_price REAL,
+-            category TEXT,
+-            distributor TEXT,
+-            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+-            UNIQUE(name, distributor)
+-        )
+-        """
+-        with self._get_connection() as conn:
+-            conn.execute(query)
++            user_dict = {'usernames': {}}
++            for u in users:
++                user_dict['usernames'][u['username']] = {
++                    'email': u['email'],
++                    'name': u['name'],
++                    'password': u['password']
++                }
++            return user_dict
++        except Exception as e:
++            logger.error(f"მომხმარებლების წაკითხვის შეცდომა: {e}")
++            return {'usernames': {}}
+ 
+-    def save_products(self, products: list[Product], distributor_name: str):
+-        query = """
+-        INSERT INTO products (brand, name, quantity, price, rrp_price, category, distributor)
+-        VALUES (?, ?, ?, ?, ?, ?, ?)
+-        ON CONFLICT(name, distributor) DO UPDATE SET
+-            quantity = excluded.quantity,
+-            price = excluded.price,
+-            rrp_price = excluded.rrp_price,
+-            category = excluded.category,
+-            last_updated = CURRENT_TIMESTAMP
+-        """
+-        # ... (დანარჩენი კოდი)
+-        saved_count = 0
+-        with self._get_connection() as conn:
+-            for p in products:
+-                try:
+-                    conn.execute(query, (
+-                        p.brand, p.name, p.quantity, p.price,
+-                        p.rrp_price, p.category, distributor_name
+-                    ))
+-                    saved_count += 1
+-                except Exception as e:
+-                    logger.error(f"შეცდომა შენახვისას ({p.name}): {e}")
+-        logger.info(f"ბაზაში აისახა {saved_count} პროდუქტი დისტრიბუტორისგან: {distributor_name}")
+-
+-    def get_top_expensive_products(self, limit: int = 10):
+-        query = "SELECT name, price, quantity, category, distributor FROM products ORDER BY price DESC LIMIT ?"
+-        with self._get_connection() as conn:
+-            cursor = conn.execute(query, (limit,))
+-            return cursor.fetchall()
+\ No newline at end of file
++    def get_all_usernames(self) -> list:
++        """აბრუნებს ყველა მომხმარებლის სახელების სიას ვალიდაციისთვის"""
++        try:
++            conn = sqlite3.connect(self.db_path)
++            cursor = conn.cursor()
++            cursor.execute("SELECT username FROM users")
++            usernames = [row[0] for row in cursor.fetchall()]
++            conn.close()
++            return usernames
++        except Exception as e:
++            logger.error(f"იუზერნეიმების წაკითხვის შეცდომა: {e}")
++            return []
++
++    def fetch_products_dataframe(self) -> pd.DataFrame:
++        """ცენტრალიზებულად კითხულობს პროდუქტებს და აბრუნებს Pandas DataFrame-ს"""
++        try:
++            conn = sqlite3.connect(self.db_path)
++            query = "SELECT category, name, price, quantity, distributor FROM products"
++            df = pd.read_sql_query(query, conn)
++            conn.close()
++            return df
++        except Exception as e:
++            logger.error(f"პროდუქტების DataFrame-ის შექმნის შეცდომა: {e}")
++            return pd.DataFrame()
+\ No newline at end of file
+Index: config/distributors.json
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>{\r\n  \"erc\": {\r\n    \"category_col\": \"Category\",\r\n    \"sub_category_col\": \"Sub-category\",\r\n    \"main_category_filter\": \"PC Components\",\r\n    \"name_col\": \"Name\",\r\n    \"brand_col\": \"Brand\",\r\n    \"price_cols\": [\"PROMO PRICE GEL\", \"PRICE GEL\"],\r\n    \"rrp_cols\": [\"Promo RRP GEL\", \"RRP GEL\"],\r\n    \"quantity_col\": \"Quantity\"\r\n  },\r\n  \"oasis\": {\r\n    \"category_col\": \"TYPE\",\r\n    \"sub_category_col\": \"TYPE\",\r\n    \"keywords\": {\r\n      \"Processors\": [\"cpu\", \"processor\"],\r\n      \"Cooling\": [\"cooler\", \"fan\"],\r\n      \"Video Cards\": [\"graphic card\", \"vga\", \"gpu\"],\r\n      \"Motherboards\": [\"motherboard\", \"mb\"],\r\n      \"PSU\": [\"psu\", \"power supply\"],\r\n      \"RAM\": [\"ram\", \"memory\"],\r\n      \"Storage\": [\"hdd\", \"ssd\", \"m.2\"]\r\n    },\r\n    \"name_col\": \"PRODUCT NAME\",\r\n    \"brand_col\": \"Brand\",\r\n    \"price_cols\": [\"GEL\"],\r\n    \"rrp_cols\": [],\r\n    \"quantity_col\": null\r\n  },\r\n  \"vrtx\": {\r\n    \"category_col\": \"კატეგორია\",\r\n    \"sub_category_col\": \"ქვეკატეგორია\",\r\n    \"main_category_filter\": null,\r\n    \"keywords\": {\r\n      \"Processors\": [\"პროცესორები\", \"cpu\"],\r\n      \"Video Cards\": [\"ვიდეო დაფები\", \"vga\", \"gpu\"],\r\n      \"Motherboards\": [\"დედა დაფები\", \"motherboard\"],\r\n      \"PSU\": [\"კვების ბლოკები\", \"psu\"],\r\n      \"Cooling\": [\"ქულერები\", \"fan\", \"cooler\"],\r\n      \"Cases\": [\"ქეისები\", \"case\"],\r\n      \"Storage\": [\"მყარი დისკები\", \"ssd\", \"hdd\", \"nvme\"]\r\n    },\r\n    \"name_col\": \"დასახელება\",\r\n    \"brand_col\": \"ბრენდი\",\r\n    \"price_cols\": [\"სტ. ფასი\"],\r\n    \"rrp_cols\": [\"RRP ფასი\"],\r\n    \"quantity_col\": \"რაოდენობა\"\r\n  }\r\n}
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/config/distributors.json b/config/distributors.json
+--- a/config/distributors.json	(revision e201dbc30b6331e0693457572895750860dd782b)
++++ b/config/distributors.json	(date 1773837309000)
+@@ -3,6 +3,16 @@
+     "category_col": "Category",
+     "sub_category_col": "Sub-category",
+     "main_category_filter": "PC Components",
++    "sub_category_keywords": {
++      "Cooling": ["fan", "cooling", "cooler", "ქულერი"],
++      "Cases": ["computer case", "chassis", "tower", "ქეისი"],
++      "Processors": ["processor", "cpu"],
++      "Video Cards": ["video card", "graphic card", "vga"],
++      "Motherboards": ["motherboard", "mb"],
++      "Storage": ["ssd", "hdd", "solid state drive"],
++      "RAM": ["memory module", "ram"],
++      "PSU": ["power supply", "psu"]
++    },
+     "name_col": "Name",
+     "brand_col": "Brand",
+     "price_cols": ["PROMO PRICE GEL", "PRICE GEL"],
+Index: services/product_service.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import os\r\nfrom parsers.excel_parser import ExcelParser\r\nfrom database.database_manager import DatabaseManager\r\nfrom utils.logger import logger\r\n\r\n\r\nclass ProductService:\r\n    def __init__(self, db_manager: DatabaseManager):\r\n        self.db_manager = db_manager\r\n        # ჩავამატოთ აკრძალული სიტყვები\r\n        self.blacklist = [\r\n            \"backpack\", \"bag\", \"ზურგჩანთა\", \"ჩანთა\",\r\n            \"notebook case\", \"laptop case\", \"sleeve\",\r\n            \"cleaning kit\", \"mouse pad\", \"მაუსის პადი\"\r\n        ]\r\n\r\n    def is_valid_component(self, product_name: str) -> bool:\r\n        \"\"\"ამოწმებს, არის თუ არა პროდუქტი ნამდვილად კომპიუტერის ნაწილი\"\"\"\r\n        if not product_name:\r\n            return False\r\n        name_low = product_name.lower()\r\n        # თუ რომელიმე აკრძალული სიტყვა ურევია, აბრუნებს False-ს\r\n        return not any(bad_word in name_low for bad_word in self.blacklist)\r\n\r\n    def _detect_distributor(self, file_name: str) -> str:\r\n        \"\"\"ამოიცნობს დისტრიბუტორს ფაილის სახელის მიხედვით\"\"\"\r\n        name_low = file_name.lower()\r\n        if \"erc\" in name_low:\r\n            return \"erc\"\r\n        elif \"oasis\" in name_low:\r\n            return \"oasis\"\r\n        elif \"vrtx\" in name_low:\r\n            return \"vrtx\"\r\n        return \"default_distributor\"\r\n\r\n    def import_from_excel(self, file_path: str, distributor: str = None):\r\n        \"\"\"ერთი ექსელის ფაილის იმპორტი ავტომატური დეტექციით\"\"\"\r\n        file_name = os.path.basename(file_path)\r\n\r\n        if not distributor:\r\n            distributor = self._detect_distributor(file_name)\r\n\r\n        logger.info(f\"პროცესი დაიწყო: {file_name} | დისტრიბუტორი: {distributor}\")\r\n\r\n        # ვიყენებთ შენს ძველ, მუშა სტრუქტურას\r\n        parser = ExcelParser(file_path, distributor)\r\n        products = parser.parse()\r\n\r\n        if products:\r\n            # --- აი აქ ვამატებთ ფილტრაციას ---\r\n            valid_products = [p for p in products if self.is_valid_component(p.name)]\r\n\r\n            if valid_products:\r\n                self.db_manager.save_products(valid_products, distributor)\r\n                logger.info(f\"წარმატებით აისახა {len(valid_products)} პროდუქტი ({distributor}).\")\r\n            else:\r\n                logger.warning(f\"ვალიდური მონაცემები ფაილიდან {file_name} ვერ წამოვიდა (ყველა დაიბლოკა).\")\r\n        else:\r\n            logger.warning(f\"ვალიდური მონაცემები ფაილიდან {file_name} ვერ წამოვიდა.\")\r\n\r\n    def import_all_from_folder(self, folder_path: str):\r\n        \"\"\"სკანირებას უკეთებს საქაღალდეს\"\"\"\r\n        if not os.path.exists(folder_path):\r\n            logger.error(f\"საქაღალდე ვერ მოიძებნა: {folder_path}\")\r\n            return\r\n\r\n        files = [f for f in os.listdir(folder_path) if f.endswith('.xlsx')]\r\n\r\n        if not files:\r\n            logger.warning(f\"საქაღალდეში {folder_path} ექსელის ფაილები არ მოიძებნა.\")\r\n            return\r\n\r\n        for file_name in files:\r\n            full_path = os.path.join(folder_path, file_name)\r\n            self.import_from_excel(full_path)
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/services/product_service.py b/services/product_service.py
+--- a/services/product_service.py	(revision e201dbc30b6331e0693457572895750860dd782b)
++++ b/services/product_service.py	(date 1779018405719)
+@@ -1,4 +1,5 @@
+ import os
++import pandas as pd
+ from parsers.excel_parser import ExcelParser
+ from database.database_manager import DatabaseManager
+ from utils.logger import logger
+@@ -7,7 +8,6 @@
+ class ProductService:
+     def __init__(self, db_manager: DatabaseManager):
+         self.db_manager = db_manager
+-        # ჩავამატოთ აკრძალული სიტყვები
+         self.blacklist = [
+             "backpack", "bag", "ზურგჩანთა", "ჩანთა",
+             "notebook case", "laptop case", "sleeve",
+@@ -19,7 +19,6 @@
+         if not product_name:
+             return False
+         name_low = product_name.lower()
+-        # თუ რომელიმე აკრძალული სიტყვა ურევია, აბრუნებს False-ს
+         return not any(bad_word in name_low for bad_word in self.blacklist)
+ 
+     def _detect_distributor(self, file_name: str) -> str:
+@@ -36,20 +35,16 @@
+     def import_from_excel(self, file_path: str, distributor: str = None):
+         """ერთი ექსელის ფაილის იმპორტი ავტომატური დეტექციით"""
+         file_name = os.path.basename(file_path)
+-
+         if not distributor:
+             distributor = self._detect_distributor(file_name)
+ 
+         logger.info(f"პროცესი დაიწყო: {file_name} | დისტრიბუტორი: {distributor}")
+ 
+-        # ვიყენებთ შენს ძველ, მუშა სტრუქტურას
+         parser = ExcelParser(file_path, distributor)
+         products = parser.parse()
+ 
+         if products:
+-            # --- აი აქ ვამატებთ ფილტრაციას ---
+             valid_products = [p for p in products if self.is_valid_component(p.name)]
+-
+             if valid_products:
+                 self.db_manager.save_products(valid_products, distributor)
+                 logger.info(f"წარმატებით აისახა {len(valid_products)} პროდუქტი ({distributor}).")
+@@ -65,11 +60,26 @@
+             return
+ 
+         files = [f for f in os.listdir(folder_path) if f.endswith('.xlsx')]
+-
+         if not files:
+             logger.warning(f"საქაღალდეში {folder_path} ექსელის ფაილები არ მოიძებნა.")
+             return
+ 
+         for file_name in files:
+             full_path = os.path.join(folder_path, file_name)
+-            self.import_from_excel(full_path)
+\ No newline at end of file
++            self.import_from_excel(full_path)
++
++    def import_gitec_products(self, gitec_products):
++        """ფილტრავს და ინახავს GITEC API პროდუქტებს"""
++        if not gitec_products:
++            return
++
++        valid_products = [p for p in gitec_products if self.is_valid_component(p.name)]
++        if valid_products:
++            self.db_manager.save_products(valid_products, "gitec")
++            logger.info(f"წარმატებით აისახა {len(valid_products)} პროდუქტი GITEC API-დან.")
++        else:
++            logger.warning("GITEC API-დან წამოღებული ყველა პროდუქტი დაიბლოკა შავი სიით.")
++
++    def get_all_products(self) -> pd.DataFrame:
++        """კითხულობს პროდუქტებს ბაზის ცენტრალიზებული მენეჯერის მეშვეობით"""
++        return self.db_manager.fetch_products_dataframe()
+\ No newline at end of file
+Index: utils/data_loader.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/utils/data_loader.py b/utils/data_loader.py
+--- a/utils/data_loader.py	(revision e201dbc30b6331e0693457572895750860dd782b)
++++ b/utils/data_loader.py	(date 1779018414230)
+@@ -1,0 +1,49 @@
++import os
++import streamlit as st
++import pandas as pd
++from database.database_manager import DatabaseManager
++from services.product_service import ProductService
++from api_clients.gitec_client import GitecClient
++
++
++def sync_inventory():
++    """მხოლოდ წერს მონაცემებს ბაზაში (Write-Only), ქეშის გარეშე"""
++    try:
++        db = DatabaseManager()
++        service = ProductService(db)
++
++        # 1. Excel იმპორტი
++        data_path = "data/distributor_files/"
++        if os.path.exists(data_path):
++            service.import_all_from_folder(data_path)
++
++        # 2. GITEC API იმპორტი
++        gitec = GitecClient()
++        try:
++            gitec_products = gitec.fetch_products()
++            if gitec_products:
++                service.import_gitec_products(gitec_products)
++        except Exception as api_error:
++            st.warning(f"GITEC API სინქრონიზაციის ხარვეზი: {api_error}")
++
++    except Exception as e:
++        st.error(f"სინქრონიზაციის შეცდომა: {e}")
++
++
++@st.cache_data(ttl=600)
++def load_inventory_df():
++    """მხოლოდ კითხულობს მონაცემებს ბაზიდან (Read-Only) და ქეშავს 10 წუთით"""
++    try:
++        db = DatabaseManager()
++        service = ProductService(db)
++        df_raw = service.get_all_products()
++
++        if df_raw.empty:
++            return pd.DataFrame()
++
++        # სვეტების სახელების გაერთიანება ერთ სტანდარტზე
++        df_raw.columns = ["კატეგორია", "დასახელება", "ფასი (₾)", "რაოდენობა", "მომწოდებელი"]
++        return df_raw
++    except Exception as e:
++        st.error(f"ბაზიდან მონაცემების წაკითხვის შეცდომა: {e}")
++        return pd.DataFrame()
+\ No newline at end of file
+Index: main.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import argparse\r\nimport os\r\nfrom database.database_manager import DatabaseManager\r\nfrom services.product_service import ProductService\r\nfrom utils.logger import logger\r\nfrom api_clients.gitec_client import GitecClient  # შევასწორე სახელი კლასის მიხედვით\r\n\r\n\r\ndef main():\r\n    parser = argparse.ArgumentParser(description=\"Inventory Import Tool\")\r\n    parser.add_argument(\"path\", help=\"Path to the Excel file or folder containing files\")\r\n    args = parser.parse_args()\r\n\r\n    try:\r\n        # 1. ინიციალიზაცია\r\n        db = DatabaseManager()\r\n        service = ProductService(db)\r\n\r\n        # 2. ექსელების იმპორტის ლოგიკა\r\n        if os.path.isdir(args.path):\r\n            print(f\"\uD83D\uDCC2 აღმოჩენილია საქაღალდე. ვიწყებ სკანირებას: {args.path}\")\r\n            service.import_all_from_folder(args.path)\r\n        elif os.path.isfile(args.path):\r\n            service.import_from_excel(args.path)\r\n        else:\r\n            print(f\"❌ შეცდომა: მითითებული გზა '{args.path}' არასწორია.\")\r\n            # აქ არ ვაჩერებთ, რომ API მაინც გაეშვას თუ საჭიროა\r\n\r\n        # --- 3. GITEC API ტესტირება და იმპორტი ---\r\n        print(\"\\n\uD83C\uDF10 ვუკავშირდები GITEC API-ს...\")\r\n\r\n        # ⚠\uFE0F ჩაწერე შენი ნამდვილი მონაცემები აქ:\r\n        gitec = GitecClient(username=\"შენი_იუზერი\", password=\"შენი_პაროლი\")\r\n        gitec_products = gitec.fetch_products()\r\n\r\n        if gitec_products:\r\n            print(f\"✅ API ტესტი წარმატებულია! წამოღებულია {len(gitec_products)} პროდუქტი.\")\r\n            db.save_products(gitec_products, \"gitec\")\r\n        else:\r\n            print(\"❌ API-დან მონაცემები ვერ წამოვიდა (შეამოწმეთ ლოგები ან პაროლები).\")\r\n\r\n        # 4. შედეგების გამოტანა (უკვე გაერთიანებული ბაზიდან)\r\n        print(\"\\n\uD83D\uDCB0 ტოპ 10 ყველაზე ძვირიანი კომპონენტი ბაზიდან:\")\r\n        top_products = db.get_top_expensive_products(10)\r\n\r\n        if not top_products:\r\n            print(\"⚠\uFE0F ბაზაში მონაცემები ვერ მოიძებნა.\")\r\n        else:\r\n            header = f\"{'კატეგორია':<20} | {'დასახელება':<45} | {'ფასი':<10} | {'რაოდენობა':<6} | {'მომწოდებელი':<10}\"\r\n            print(header)\r\n            print(\"-\" * len(header))\r\n\r\n            for row in top_products:\r\n                category = row['category'][:18] if row['category'] else \"N/A\"\r\n                raw_name = row['name']\r\n                name = (raw_name[:42] + \"...\") if len(raw_name) > 42 else raw_name\r\n                price = row['price']\r\n                quantity = row['quantity']\r\n                distributor = row['distributor'].upper() if row['distributor'] else \"N/A\"\r\n\r\n                print(f\"{category:<20} | {name:<45} | {price:>8.2f} | {quantity:^6} | {distributor:<10}\")\r\n\r\n        print(\"\\n✅ პროცესი დასრულდა.\")\r\n\r\n    except Exception as e:\r\n        logger.error(f\"კრიტიკული შეცდომა main-ში: {e}\")\r\n        print(f\"❌ მოხდა შეცდომა. დეტალები იხილეთ ლოგებში.\")\r\n\r\n\r\nif __name__ == \"__main__\":\r\n    main()
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/main.py b/main.py
+--- a/main.py	(revision e201dbc30b6331e0693457572895750860dd782b)
++++ b/main.py	(date 1779018216093)
+@@ -1,71 +1,75 @@
+-import argparse
+-import os
+-from database.database_manager import DatabaseManager
+-from services.product_service import ProductService
+-from utils.logger import logger
+-from api_clients.gitec_client import GitecClient  # შევასწორე სახელი კლასის მიხედვით
++import streamlit as st
++from utils.data_loader import sync_inventory, load_inventory_df
++from dotenv import load_dotenv
+ 
++# .env კონფიგურაციის ჩატვირთვა
++load_dotenv()
+ 
+-def main():
+-    parser = argparse.ArgumentParser(description="Inventory Import Tool")
+-    parser.add_argument("path", help="Path to the Excel file or folder containing files")
+-    args = parser.parse_args()
++# გვერდის საწყისი პარამეტრები
++st.set_page_config(page_title="Inventory Manager (Dev)", layout="wide", page_icon="🖥️")
+ 
+-    try:
+-        # 1. ინიციალიზაცია
+-        db = DatabaseManager()
+-        service = ProductService(db)
++st.title("🖥️ კომპიუტერული ნაწილების ინვენტარი (Dev ვერსია)")
++st.write("მონაცემების სწრაფი სინქრონიზაცია და ჩვენება ავტორიზაციის გარეშე (GITEC + Excel)")
+ 
+-        # 2. ექსელების იმპორტის ლოგიკა
+-        if os.path.isdir(args.path):
+-            print(f"📂 აღმოჩენილია საქაღალდე. ვიწყებ სკანირებას: {args.path}")
+-            service.import_all_from_folder(args.path)
+-        elif os.path.isfile(args.path):
+-            service.import_from_excel(args.path)
+-        else:
+-            print(f"❌ შეცდომა: მითითებული გზა '{args.path}' არასწორია.")
+-            # აქ არ ვაჩერებთ, რომ API მაინც გაეშვას თუ საჭიროა
++# საწყისი ავტომატური სინქრონიზაცია (გაეშვება მხოლოდ სესიის დასაწყისში ერთხელ)
++if 'initial_sync_done' not in st.session_state:
++    with st.spinner("მიმდინარეობს საწყისი სინქრონიზაცია (Dev)..."):
++        sync_inventory()
++    st.session_state['initial_sync_done'] = True
+ 
+-        # --- 3. GITEC API ტესტირება და იმპორტი ---
+-        print("\n🌐 ვუკავშირდები GITEC API-ს...")
++# --- Sidebar: ბაზის იძულებითი განახლების ღილაკი ---
++st.sidebar.header("🔄 მონაცემთა ბაზა")
++if st.sidebar.button("მონაცემების სინქრონიზაცია"):
++    with st.spinner("მიმდინარეობს ბაზის განახლება..."):
++        sync_inventory()
++        st.cache_data.clear()
++    st.success("ბაზა წარმატებით განახლდა!")
++    st.rerun()
+ 
+-        # ⚠️ ჩაწერე შენი ნამდვილი მონაცემები აქ:
+-        gitec = GitecClient(username="შენი_იუზერი", password="შენი_პაროლი")
+-        gitec_products = gitec.fetch_products()
++# ჩატვირთვა დაქეშირებული მოდულიდან (Read-Only ოპერაცია)
++df = load_inventory_df()
+ 
+-        if gitec_products:
+-            print(f"✅ API ტესტი წარმატებულია! წამოღებულია {len(gitec_products)} პროდუქტი.")
+-            db.save_products(gitec_products, "gitec")
+-        else:
+-            print("❌ API-დან მონაცემები ვერ წამოვიდა (შეამოწმეთ ლოგები ან პაროლები).")
+-
+-        # 4. შედეგების გამოტანა (უკვე გაერთიანებული ბაზიდან)
+-        print("\n💰 ტოპ 10 ყველაზე ძვირიანი კომპონენტი ბაზიდან:")
+-        top_products = db.get_top_expensive_products(10)
++if df.empty:
++    st.warning("ბაზა ცარიელია ან მოხდა შეცდომა ჩატვირთვისას. დააჭირეთ 'მონაცემების სინქრონიზაცია'-ს.")
++else:
++    # --- Sidebar ფილტრები ---
++    st.sidebar.header("🔍 ფილტრაცია")
+ 
+-        if not top_products:
+-            print("⚠️ ბაზაში მონაცემები ვერ მოიძებნა.")
+-        else:
+-            header = f"{'კატეგორია':<20} | {'დასახელება':<45} | {'ფასი':<10} | {'რაოდენობა':<6} | {'მომწოდებელი':<10}"
+-            print(header)
+-            print("-" * len(header))
++    distributors = st.sidebar.multiselect(
++        "მომწოდებელი:",
++        options=df["მომწოდებელი"].unique(),
++        default=df["მომწოდებელი"].unique()
++    )
++    categories = st.sidebar.multiselect(
++        "კატეგორია:",
++        options=df["კატეგორია"].unique(),
++        default=df["კატეგორია"].unique()
++    )
++    search_query = st.text_input("მოძებნე პროდუქტი:", "")
+ 
+-            for row in top_products:
+-                category = row['category'][:18] if row['category'] else "N/A"
+-                raw_name = row['name']
+-                name = (raw_name[:42] + "...") if len(raw_name) > 42 else raw_name
+-                price = row['price']
+-                quantity = row['quantity']
+-                distributor = row['distributor'].upper() if row['distributor'] else "N/A"
++    # მონაცემების გაფილტვრა
++    filtered_df = df[
++        (df["მომწოდებელი"].isin(distributors)) &
++        (df["კატეგორია"].isin(categories))
++    ]
+ 
+-                print(f"{category:<20} | {name:<45} | {price:>8.2f} | {quantity:^6} | {distributor:<10}")
++    if search_query:
++        filtered_df = filtered_df[filtered_df["დასახელება"].str.contains(search_query, case=False, na=False)]
+ 
+-        print("\n✅ პროცესი დასრულდა.")
++    # --- სტატისტიკა (Metrics) ---
++    c1, c2, c3 = st.columns(3)
++    c1.metric("ჯამური მოდელები", len(filtered_df))
++    c2.metric("საშუალო ფასი", f"{round(filtered_df['ფასი (₾)'].mean(), 2) if not filtered_df.empty else 0} ₾")
++    c3.metric("მარაგი ჯამში", int(filtered_df['რაოდენობა'].sum()) if not filtered_df.empty else 0)
+ 
+-    except Exception as e:
+-        logger.error(f"კრიტიკული შეცდომა main-ში: {e}")
+-        print(f"❌ მოხდა შეცდომა. დეტალები იხილეთ ლოგებში.")
++    # მონაცემების ინტერაქტიული ცხრილი
++    st.dataframe(filtered_df, use_container_width=True)
+ 
+-
+-if __name__ == "__main__":
+-    main()
+\ No newline at end of file
++    # ჩამოტვირთვის ღილაკი
++    csv = filtered_df.to_csv(index=False).encode('utf-8-sig')
++    st.download_button(
++        label="📥 მონაცემების CSV-ში ჩამოტვირთვა",
++        data=csv,
++        file_name='dev_inventory_report.csv',
++        mime='text/csv',
++    )
+\ No newline at end of file
+Index: parsers/excel_parser.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import json\r\nimport pandas as pd\r\nimport re\r\nfrom models.product import Product\r\nfrom utils.logger import logger\r\n\r\n\r\nclass ExcelParser:\r\n    def __init__(self, file_path: str, distributor_name: str):\r\n        self.file_path = file_path\r\n        self.config = self._load_config(distributor_name)\r\n\r\n    def _load_config(self, name):\r\n        try:\r\n            with open(\"config/distributors.json\", \"r\", encoding=\"utf-8\") as f:\r\n                configs = json.load(f)\r\n                return configs.get(name)\r\n        except Exception as e:\r\n            logger.error(f\"კონფიგურაციის ფაილი ვერ მოიძებნა: {e}\")\r\n            return None\r\n\r\n    def _identify_category(self, row):\r\n        \"\"\"ადგენს კატეგორიას ფილტრის ან საკვანძო სიტყვების მიხედვით\"\"\"\r\n        if not self.config: return None\r\n\r\n        # ვიღებთ მნიშვნელობებს კონფიგურაციაში მითითებული სვეტებიდან\r\n        cat_col = self.config.get(\"category_col\")\r\n        sub_cat_col = self.config.get(\"sub_category_col\")\r\n\r\n        cat_raw = str(row.get(cat_col, \"\")).strip() if cat_col in row else \"\"\r\n        sub_cat_raw = str(row.get(sub_cat_col, \"\")).strip() if sub_cat_col in row else \"\"\r\n\r\n        # 1. ERC-ის შემთხვევა: თუ გვაქვს მთავარი ფილტრი (მაგ: PC Components)\r\n        if self.config.get(\"main_category_filter\"):\r\n            if cat_raw == self.config[\"main_category_filter\"]:\r\n                return sub_cat_raw\r\n            return None\r\n\r\n        # 2. Oasis-ის შემთხვევა: Keywords ძებნა (ვეძებთ ორივე სვეტში)\r\n        combined_text = (cat_raw + \" \" + sub_cat_raw).lower()\r\n        if \"keywords\" in self.config:\r\n            for formal_cat, kws in self.config[\"keywords\"].items():\r\n                if any(kw.lower() in combined_text for kw in kws):\r\n                    return formal_cat\r\n        return None\r\n\r\n    def _clean_price(self, value):\r\n        if pd.isna(value) or str(value).strip() == \"\": return 0.0\r\n        # ვტოვებთ მხოლოდ ციფრებს და წერტილს\r\n        cleaned = \"\".join(c for c in str(value) if c.isdigit() or c == '.')\r\n        try:\r\n            return float(cleaned)\r\n        except:\r\n            return 0.0\r\n\r\n    def parse(self) -> list[Product]:\r\n        if not self.config:\r\n            return []\r\n\r\n        try:\r\n            df = pd.read_excel(self.file_path, engine=\"openpyxl\")\r\n            # სვეტების სახელების გასუფთავება (Space-ების მოცილება)\r\n            df.columns = [str(col).strip() for col in df.columns]\r\n\r\n            products = []\r\n            for index, row in df.iterrows():\r\n                category = self._identify_category(row)\r\n                if not category:\r\n                    continue\r\n\r\n                # --- ფასის ამოღება ---\r\n                price = 0.0\r\n                for col in self.config.get(\"price_cols\", []):\r\n                    if col in row:\r\n                        val = row.get(col)\r\n                        price = self._clean_price(val)\r\n                        if price > 0: break\r\n\r\n                if price <= 0: continue\r\n\r\n                # --- RRP ლოგიკა ---\r\n                rrp = 0.0\r\n                for col in self.config.get(\"rrp_cols\", []):\r\n                    if col in row:\r\n                        val = row.get(col)\r\n                        rrp = self._clean_price(val)\r\n                        if rrp > 0: break\r\n\r\n                if rrp <= 0:\r\n                    rrp = round(price * 1.10, 2)\r\n\r\n                # --- რაოდენობის ლოგიკა (Oasis-ის გათვალისწინებით) ---\r\n                q_col = self.config.get(\"quantity_col\")\r\n                if q_col and q_col in row:\r\n                    raw_q = str(row.get(q_col, \"0\"))\r\n                    cleaned_q = re.sub(r'\\D', '', raw_q)\r\n                    quantity = int(cleaned_q) if cleaned_q else 0\r\n                else:\r\n                    # თუ რაოდენობის სვეტი არ არსებობს (Oasis), მივანიჭოთ 1\r\n                    quantity = 1\r\n\r\n                products.append(Product(\r\n                    brand=str(row.get(self.config[\"brand_col\"], \"Unknown\")).strip(),\r\n                    name=str(row.get(self.config[\"name_col\"], \"No Name\")).strip(),\r\n                    quantity=quantity,\r\n                    price=price,\r\n                    rrp_price=rrp,\r\n                    category=category\r\n                ))\r\n\r\n            logger.info(f\"წარმატებით დაპარსულია {len(products)} პროდუქტი.\")\r\n            return products\r\n\r\n        except Exception as e:\r\n            logger.error(f\"შეცდომა პარსინგისას: {e}\")\r\n            return []
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/parsers/excel_parser.py b/parsers/excel_parser.py
+--- a/parsers/excel_parser.py	(revision e201dbc30b6331e0693457572895750860dd782b)
++++ b/parsers/excel_parser.py	(date 1773837309000)
+@@ -1,6 +1,7 @@
+ import json
+ import pandas as pd
+ import re
++import os
+ from models.product import Product
+ from utils.logger import logger
+ 
+@@ -8,46 +9,75 @@
+ class ExcelParser:
+     def __init__(self, file_path: str, distributor_name: str):
+         self.file_path = file_path
++        self.distributor_name = distributor_name
+         self.config = self._load_config(distributor_name)
+ 
+     def _load_config(self, name):
+         try:
+-            with open("config/distributors.json", "r", encoding="utf-8") as f:
++            # ვიყენებთ აბსოლუტურ გზას ან ვამოწმებთ არსებობას
++            config_path = "config/distributors.json"
++            if not os.path.exists(config_path):
++                logger.error(f"კონფიგურაციის ფაილი არ არსებობს გზაზე: {config_path}")
++                return None
++
++            with open(config_path, "r", encoding="utf-8") as f:
+                 configs = json.load(f)
+                 return configs.get(name)
+         except Exception as e:
+-            logger.error(f"კონფიგურაციის ფაილი ვერ მოიძებნა: {e}")
++            logger.error(f"კონფიგურაციის ჩატვირთვის შეცდომა: {e}")
+             return None
+ 
+     def _identify_category(self, row):
+-        """ადგენს კატეგორიას ფილტრის ან საკვანძო სიტყვების მიხედვით"""
+-        if not self.config: return None
++        """ადგენს კატეგორიას კონფიგურაციაში არსებული Mapping-ის ან Keywords-ის მიხედვით"""
++        if not self.config:
++            return None
+ 
+-        # ვიღებთ მნიშვნელობებს კონფიგურაციაში მითითებული სვეტებიდან
+         cat_col = self.config.get("category_col")
+         sub_cat_col = self.config.get("sub_category_col")
++        name_col = self.config.get("name_col")
+ 
+         cat_raw = str(row.get(cat_col, "")).strip() if cat_col in row else ""
+         sub_cat_raw = str(row.get(sub_cat_col, "")).strip() if sub_cat_col in row else ""
++        name_raw = str(row.get(name_col, "")).strip() if name_col in row else ""
+ 
+-        # 1. ERC-ის შემთხვევა: თუ გვაქვს მთავარი ფილტრი (მაგ: PC Components)
++        sub_cat_low = sub_cat_raw.lower()
++        combined_text = (cat_raw + " " + sub_cat_raw).lower()
++
++        # 1. ERC-ის შემთხვევა: მთავარი ფილტრი + Sub-category Mapping
+         if self.config.get("main_category_filter"):
+             if cat_raw == self.config["main_category_filter"]:
+-                return sub_cat_raw
++                sub_cat_map = self.config.get("sub_category_keywords")
++                if sub_cat_map:
++                    for formal_cat, kws in sub_cat_map.items():
++                        if any(kw.lower() in sub_cat_low for kw in kws):
++                            return formal_cat
++                # თუ Mapping-ში არ არის, ვაბრუნებთ გასუფთავებულ ორიგინალს
++                return sub_cat_raw if sub_cat_raw else "Other"
+             return None
+ 
+-        # 2. Oasis-ის შემთხვევა: Keywords ძებნა (ვეძებთ ორივე სვეტში)
+-        combined_text = (cat_raw + " " + sub_cat_raw).lower()
++        # 2. Oasis, VRTX და სხვა: Keywords ძებნა კატეგორიებსა და სახლებში
+         if "keywords" in self.config:
+             for formal_cat, kws in self.config["keywords"].items():
+                 if any(kw.lower() in combined_text for kw in kws):
+                     return formal_cat
++
++        # 3. დამატებითი დაზღვევა: ძებნა პროდუქტის სახელით (თუ კატეგორიით ვერ იპოვა)
++        name_low = name_raw.lower()
++        # შეგვიძლია გამოვიყენოთ VRTX-ის keywords ბაზა სახელებისთვისაც
++        all_keywords = self.config.get("keywords") or self.config.get("sub_category_keywords")
++        if all_keywords:
++            for formal_cat, kws in all_keywords.items():
++                if any(kw.lower() in name_low for kw in kws):
++                    return formal_cat
++
+         return None
+ 
+     def _clean_price(self, value):
+-        if pd.isna(value) or str(value).strip() == "": return 0.0
+-        # ვტოვებთ მხოლოდ ციფრებს და წერტილს
+-        cleaned = "".join(c for c in str(value) if c.isdigit() or c == '.')
++        if pd.isna(value) or str(value).strip() == "":
++            return 0.0
++        # ვტოვებთ მხოლოდ ციფრებს, წერტილს და მძიმეს (მძიმეს ვცვლით წერტილით)
++        cleaned = str(value).replace(',', '.')
++        cleaned = "".join(c for c in cleaned if c.isdigit() or c == '.')
+         try:
+             return float(cleaned)
+         except:
+@@ -55,16 +85,20 @@
+ 
+     def parse(self) -> list[Product]:
+         if not self.config:
++            logger.error(f"პარსინგი ვერ დაიწყო: კონფიგურაცია {self.distributor_name}-სთვის ვერ მოიძებნა.")
+             return []
+ 
+         try:
++            # ვკითხულობთ ექსელს
+             df = pd.read_excel(self.file_path, engine="openpyxl")
+-            # სვეტების სახელების გასუფთავება (Space-ების მოცილება)
++            # სვეტების გასუფთავება
+             df.columns = [str(col).strip() for col in df.columns]
+ 
+             products = []
+-            for index, row in df.iterrows():
++            for _, row in df.iterrows():
+                 category = self._identify_category(row)
++
++                # თუ კატეგორია ვერ დადგინდა, ამ პროდუქტს ვტოვებთ
+                 if not category:
+                     continue
+ 
+@@ -72,8 +106,7 @@
+                 price = 0.0
+                 for col in self.config.get("price_cols", []):
+                     if col in row:
+-                        val = row.get(col)
+-                        price = self._clean_price(val)
++                        price = self._clean_price(row.get(col))
+                         if price > 0: break
+ 
+                 if price <= 0: continue
+@@ -82,35 +115,44 @@
+                 rrp = 0.0
+                 for col in self.config.get("rrp_cols", []):
+                     if col in row:
+-                        val = row.get(col)
+-                        rrp = self._clean_price(val)
++                        rrp = self._clean_price(row.get(col))
+                         if rrp > 0: break
+ 
+                 if rrp <= 0:
+                     rrp = round(price * 1.10, 2)
+ 
+-                # --- რაოდენობის ლოგიკა (Oasis-ის გათვალისწინებით) ---
++                # --- რაოდენობის ლოგიკა ---
++                quantity = 0
+                 q_col = self.config.get("quantity_col")
+                 if q_col and q_col in row:
+                     raw_q = str(row.get(q_col, "0"))
+                     cleaned_q = re.sub(r'\D', '', raw_q)
+                     quantity = int(cleaned_q) if cleaned_q else 0
+                 else:
+-                    # თუ რაოდენობის სვეტი არ არსებობს (Oasis), მივანიჭოთ 1
++                    # დეფოლტად 1, თუ სვეტი არ არსებობს (მაგ: Oasis)
+                     quantity = 1
+ 
++                # ბრენდის ამოღება
++                brand_col = self.config.get("brand_col")
++                brand = str(row.get(brand_col, "Unknown")).strip() if brand_col in row else "Unknown"
++
++                # დასახელების ამოღება
++                name_col = self.config.get("name_col")
++                name = str(row.get(name_col, "No Name")).strip() if name_col in row else "No Name"
++
+                 products.append(Product(
+-                    brand=str(row.get(self.config["brand_col"], "Unknown")).strip(),
+-                    name=str(row.get(self.config["name_col"], "No Name")).strip(),
++                    brand=brand,
++                    name=name,
+                     quantity=quantity,
+                     price=price,
+                     rrp_price=rrp,
+-                    category=category
++                    category=category,
++                    distributor=self.distributor_name  # ვამატებთ დისტრიბუტორსაც
+                 ))
+ 
+-            logger.info(f"წარმატებით დაპარსულია {len(products)} პროდუქტი.")
++            logger.info(f"{self.distributor_name}: წარმატებით დაპარსულია {len(products)} პროდუქტი.")
+             return products
+ 
+         except Exception as e:
+-            logger.error(f"შეცდომა პარსინგისას: {e}")
++            logger.error(f"შეცდომა {self.distributor_name}-ის პარსინგისას: {e}")
+             return []
+\ No newline at end of file
+Index: .env
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>DB_NAME=inventory.db\r\nLOG_LEVEL=INFO
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.env b/.env
+--- a/.env	(revision e201dbc30b6331e0693457572895750860dd782b)
++++ b/.env	(date 1779018646633)
+@@ -1,2 +1,5 @@
+ DB_NAME=inventory.db
+-LOG_LEVEL=INFO
+\ No newline at end of file
++LOG_LEVEL=INFO
++GITEC_USERNAME=sales@geekspot.ge
++GITEC_PASSWORD=qazaq123
++AUTH_COOKIE_KEY=კომპიუტერული_ნაწილების_ინვენტარი_სეკრეტ_კეი_2026_GeekSpot
+\ No newline at end of file
+Index: readme.md
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+># \uD83D\uDDA5\uFE0F PC Hardware Inventory & Price Comparison System\r\n\r\nეს არის Python-ზე დაფუძნებული ავტომატიზებული სისტემა, რომელიც ახდენს კომპიუტერული ტექნიკის ინვენტარიზაციას და ფასების შედარებას სხვადასხვა მომწოდებლებისგან. სისტემა აერთიანებს მონაცემებს როგორც ლოკალური Excel ფაილებიდან (ERC, Oasis, Vertex), ასევე პირდაპირი API კავშირით (GITEC).\r\n\r\n## ✨ ძირითადი ფუნქციები\r\n\r\n* **Multi-Source Integration:** მონაცემების მიღება სხვადასხვა ფორმატით (.xlsx, .xls და REST API).\r\n* **Smart Filtering (Blacklist):** ჩაშენებული ფილტრაციის სისტემა, რომელიც ავტომატურად ბლოკავს არასაჭირო ნივთებს (ჩანთები, აქსესუარები, ზურგჩანთები).\r\n* **Automated Categorization:** პროდუქტების ავტომატური დახარისხება (პროცესორები, ვიდეო ბარათები, დედაპლატები და ა.შ.) საკვანძო სიტყვების მიხედვით.\r\n* **Unified Database:** ყველა მონაცემი ინახება სტრუქტურირებულად ერთიან SQLite მონაცემთა ბაზაში.\r\n* **Logging System:** დეტალური ლოგირება პროცესების მონიტორინგისთვის და შეცდომების დიაგნოსტიკისთვის.\r\n\r\n## \uD83D\uDEE0\uFE0F პროექტის სტრუქტურა\r\n\r\n```text\r\n├── api_clients/        # API კლიენტები (მაგ: GITEC)\r\n├── config/             # კონფიგურაციის ფაილები (distributors.json)\r\n├── data/               # ექსელების საცავი\r\n│   └── distributor_files/\r\n├── database/           # SQLite მენეჯერი\r\n├── models/             # მონაცემთა მოდელები (Product)\r\n├── parsers/            # Excel-ის პარსერები\r\n├── services/           # ბიზნეს ლოგიკა (ProductService)\r\n├── utils/              # დამხმარე ხელსაწყოები (Logger)\r\n├── main.py             # მთავარი გამშვები სკრიპტი\r\n└── requirements.txt    # საჭირო ბიბლიოთეკების სია\r\n\r\n\r\n\uD83D\uDE80 ინსტალაცია და გაშვება (Setup Guide)\r\nმიჰყევით ამ ნაბიჯებს სისტემის ახალ კომპიუტერზე ასამუშავებლად:\r\n\r\n1. პითონის მომზადება\r\nდარწმუნდით, რომ დაინსტალირებული გაქვთ Python 3.10 ან უფრო ახალი ვერსია.\r\n\r\n2. ვირტუალური გარემო\r\nBash\r\n# შექმენით გარემო\r\npython -m venv venv\r\n\r\n# გააქტიურეთ (Windows)\r\nvenv\\Scripts\\activate\r\n\r\n# გააქტიურეთ (Mac/Linux)\r\nsource venv/bin/activate\r\n3. დამოკიდებულებების ინსტალაცია\r\nBash\r\npip install -r requirements.txt\r\n(თუ requirements.txt არ გაქვთ, გაუშვით: pip install pandas openpyxl requests)\r\n\r\n4. მონაცემების მომზადება\r\nმოათავსეთ მომწოდებლების ფაილები data/distributor_files/ საქაღალდეში.\r\n\r\nდარწმუნდით, რომ ფაილის სახელში ფიგურირებს დისტრიბუტორის სახელი (მაგ: erc_stock.xlsx).\r\n\r\n5. გაშვება\r\nBash\r\npython main.py data/distributor_files/\r\n\uD83D\uDCC8 სამომავლო გეგმები (Roadmap)\r\n[ ] Best Price Report: ფუნქცია, რომელიც ავტომატურად იპოვის ყველაზე დაბალ ფასს იდენტურ პროდუქტზე სხვადასხვა ბაზაში.\r\n\r\n[ ] Price Tracking: ფასების ცვლილების ისტორიის შენახვა და გრაფიკული ანალიზი.\r\n\r\n[ ] Web Dashboard: მარტივი ვებ-ინტერფეისი მონაცემების დასათვალიერებლად.
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/readme.md b/readme.md
+--- a/readme.md	(revision e201dbc30b6331e0693457572895750860dd782b)
++++ b/readme.md	(date 1773837309000)
+@@ -1,8 +1,8 @@
+-# 🖥️ PC Hardware Inventory & Price Comparison System
++#  PC Hardware Inventory & Price Comparison System
+ 
+ ეს არის Python-ზე დაფუძნებული ავტომატიზებული სისტემა, რომელიც ახდენს კომპიუტერული ტექნიკის ინვენტარიზაციას და ფასების შედარებას სხვადასხვა მომწოდებლებისგან. სისტემა აერთიანებს მონაცემებს როგორც ლოკალური Excel ფაილებიდან (ERC, Oasis, Vertex), ასევე პირდაპირი API კავშირით (GITEC).
+ 
+-## ✨ ძირითადი ფუნქციები
++##  ძირითადი ფუნქციები
+ 
+ * **Multi-Source Integration:** მონაცემების მიღება სხვადასხვა ფორმატით (.xlsx, .xls და REST API).
+ * **Smart Filtering (Blacklist):** ჩაშენებული ფილტრაციის სისტემა, რომელიც ავტომატურად ბლოკავს არასაჭირო ნივთებს (ჩანთები, აქსესუარები, ზურგჩანთები).
+@@ -10,7 +10,7 @@
+ * **Unified Database:** ყველა მონაცემი ინახება სტრუქტურირებულად ერთიან SQLite მონაცემთა ბაზაში.
+ * **Logging System:** დეტალური ლოგირება პროცესების მონიტორინგისთვის და შეცდომების დიაგნოსტიკისთვის.
+ 
+-## 🛠️ პროექტის სტრუქტურა
++## ️ პროექტის სტრუქტურა
+ 
+ ```text
+ ├── api_clients/        # API კლიენტები (მაგ: GITEC)
+@@ -26,7 +26,7 @@
+ └── requirements.txt    # საჭირო ბიბლიოთეკების სია
+ 
+ 
+-🚀 ინსტალაცია და გაშვება (Setup Guide)
++ ინსტალაცია და გაშვება (Setup Guide)
+ მიჰყევით ამ ნაბიჯებს სისტემის ახალ კომპიუტერზე ასამუშავებლად:
+ 
+ 1. პითონის მომზადება
+@@ -55,7 +55,7 @@
+ 5. გაშვება
+ Bash
+ python main.py data/distributor_files/
+-📈 სამომავლო გეგმები (Roadmap)
++ სამომავლო გეგმები (Roadmap)
+ [ ] Best Price Report: ფუნქცია, რომელიც ავტომატურად იპოვის ყველაზე დაბალ ფასს იდენტურ პროდუქტზე სხვადასხვა ბაზაში.
+ 
+ [ ] Price Tracking: ფასების ცვლილების ისტორიის შენახვა და გრაფიკული ანალიზი.
+Index: models/product.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>from dataclasses import dataclass\r\n\r\n\r\n@dataclass\r\nclass Product:\r\n    brand: str\r\n    name: str\r\n    quantity: int\r\n    price: float\r\n    rrp_price: float\r\n    category: str  # აქ შეინახება ქვეკატეგორია ან იდენტიფიცირებული ტიპი\r\n\r\n    def validate(self):\r\n        # სახელის ვალიდაცია\r\n        if not self.name or str(self.name).lower() == \"nan\":\r\n            raise ValueError(\"პროდუქტის სახელი ცარიელია ან არასწორია\")\r\n\r\n        # ბრენდის გასუფთავება\r\n        if not self.brand or str(self.brand).lower() == \"nan\":\r\n            self.brand = \"Unknown\"\r\n\r\n        # ფასის ვალიდაცია\r\n        if self.price < 0:\r\n            raise ValueError(f\"უარყოფითი ფასი: {self.name}\")\r\n\r\n        # რაოდენობის ვალიდაცია (რომ შემთხვევით უარყოფითი არ ჩავწეროთ)\r\n        if self.quantity < 0:\r\n            self.quantity = 0
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/models/product.py b/models/product.py
+--- a/models/product.py	(revision e201dbc30b6331e0693457572895750860dd782b)
++++ b/models/product.py	(date 1777908442273)
+@@ -6,9 +6,10 @@
+     brand: str
+     name: str
+     quantity: int
+-    price: float
++    price: int
+     rrp_price: float
+-    category: str  # აქ შეინახება ქვეკატეგორია ან იდენტიფიცირებული ტიპი
++    category: str
++    distributor: str = "Unknown"
+ 
+     def validate(self):
+         # სახელის ვალიდაცია
+Index: .idea/workspace.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<project version=\"4\">\r\n  <component name=\"AutoImportSettings\">\r\n    <option name=\"autoReloadType\" value=\"SELECTIVE\" />\r\n  </component>\r\n  <component name=\"ChangeListManager\">\r\n    <list default=\"true\" id=\"ade5e9ef-558a-4eaf-ba00-def5bdaaff40\" name=\"Changes\" comment=\"API ზე დაკავშირებული დისტრიბუტორების დამატება\" />\r\n    <option name=\"SHOW_DIALOG\" value=\"false\" />\r\n    <option name=\"HIGHLIGHT_CONFLICTS\" value=\"true\" />\r\n    <option name=\"HIGHLIGHT_NON_ACTIVE_CHANGELIST\" value=\"false\" />\r\n    <option name=\"LAST_RESOLUTION\" value=\"IGNORE\" />\r\n  </component>\r\n  <component name=\"FileTemplateManagerImpl\">\r\n    <option name=\"RECENT_TEMPLATES\">\r\n      <list>\r\n        <option value=\"Python Script\" />\r\n      </list>\r\n    </option>\r\n  </component>\r\n  <component name=\"Git.Settings\">\r\n    <option name=\"RECENT_BRANCH_BY_REPOSITORY\">\r\n      <map>\r\n        <entry key=\"$PROJECT_DIR$\" value=\"7f1679445be2e330a4a8cfeabb89915f03edd418\" />\r\n      </map>\r\n    </option>\r\n    <option name=\"RECENT_GIT_ROOT_PATH\" value=\"$PROJECT_DIR$\" />\r\n  </component>\r\n  <component name=\"GitHubPullRequestSearchHistory\">{\r\n  &quot;lastFilter&quot;: {\r\n    &quot;state&quot;: &quot;OPEN&quot;,\r\n    &quot;assignee&quot;: &quot;wzevs&quot;\r\n  }\r\n}</component>\r\n  <component name=\"GithubPullRequestsUISettings\">{\r\n  &quot;selectedUrlAndAccountId&quot;: {\r\n    &quot;url&quot;: &quot;https://github.com/wzevs/Final_Project.git&quot;,\r\n    &quot;accountId&quot;: &quot;95a2bde2-83ad-45d2-b984-d7b260fa5bee&quot;\r\n  }\r\n}</component>\r\n  <component name=\"McpProjectServerCommands\">\r\n    <commands />\r\n    <urls />\r\n  </component>\r\n  <component name=\"ProjectColorInfo\">{\r\n  &quot;associatedIndex&quot;: 4\r\n}</component>\r\n  <component name=\"ProjectId\" id=\"3Ayg7VsczwZwMphkxAWtsD8kQQu\" />\r\n  <component name=\"ProjectViewState\">\r\n    <option name=\"hideEmptyMiddlePackages\" value=\"true\" />\r\n    <option name=\"showLibraryContents\" value=\"true\" />\r\n  </component>\r\n  <component name=\"PropertiesComponent\">{\r\n  &quot;keyToString&quot;: {\r\n    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,\r\n    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,\r\n    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,\r\n    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,\r\n    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,\r\n    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,\r\n    &quot;git-widget-placeholder&quot;: &quot;master&quot;,\r\n    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,\r\n    &quot;last_opened_file_path&quot;: &quot;C:/Users/User1/Desktop/Final Project&quot;,\r\n    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;\r\n  }\r\n}</component>\r\n  <component name=\"RunManager\">\r\n    <configuration name=\"main\" type=\"PythonConfigurationType\" factoryName=\"Python\" nameIsGenerated=\"true\">\r\n      <module name=\"Final Project\" />\r\n      <option name=\"ENV_FILES\" value=\"\" />\r\n      <option name=\"INTERPRETER_OPTIONS\" value=\"\" />\r\n      <option name=\"PARENT_ENVS\" value=\"true\" />\r\n      <envs>\r\n        <env name=\"PYTHONUNBUFFERED\" value=\"1\" />\r\n      </envs>\r\n      <option name=\"SDK_HOME\" value=\"\" />\r\n      <option name=\"WORKING_DIRECTORY\" value=\"$PROJECT_DIR$\" />\r\n      <option name=\"IS_MODULE_SDK\" value=\"true\" />\r\n      <option name=\"ADD_CONTENT_ROOTS\" value=\"true\" />\r\n      <option name=\"ADD_SOURCE_ROOTS\" value=\"true\" />\r\n      <option name=\"RUN_TOOL\" value=\"\" />\r\n      <option name=\"SCRIPT_NAME\" value=\"$PROJECT_DIR$/main.py\" />\r\n      <option name=\"PARAMETERS\" value=\"\" />\r\n      <option name=\"SHOW_COMMAND_LINE\" value=\"false\" />\r\n      <option name=\"EMULATE_TERMINAL\" value=\"false\" />\r\n      <option name=\"MODULE_MODE\" value=\"false\" />\r\n      <option name=\"REDIRECT_INPUT\" value=\"false\" />\r\n      <option name=\"INPUT_FILE\" value=\"\" />\r\n      <method v=\"2\" />\r\n    </configuration>\r\n  </component>\r\n  <component name=\"SharedIndexes\">\r\n    <attachedChunks>\r\n      <set>\r\n        <option value=\"bundled-python-sdk-ca5e2b39c7df-6e1f45a539f7-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-253.29346.308\" />\r\n      </set>\r\n    </attachedChunks>\r\n  </component>\r\n  <component name=\"TaskManager\">\r\n    <task active=\"true\" id=\"Default\" summary=\"Default task\">\r\n      <changelist id=\"ade5e9ef-558a-4eaf-ba00-def5bdaaff40\" name=\"Changes\" comment=\"\" />\r\n      <created>1773570056622</created>\r\n      <option name=\"number\" value=\"Default\" />\r\n      <option name=\"presentableId\" value=\"Default\" />\r\n      <updated>1773570056622</updated>\r\n    </task>\r\n    <task id=\"LOCAL-00001\" summary=\"First commit\">\r\n      <option name=\"closed\" value=\"true\" />\r\n      <created>1773570154066</created>\r\n      <option name=\"number\" value=\"00001\" />\r\n      <option name=\"presentableId\" value=\"LOCAL-00001\" />\r\n      <option name=\"project\" value=\"LOCAL\" />\r\n      <updated>1773570154066</updated>\r\n    </task>\r\n    <task id=\"LOCAL-00002\" summary=\"დისტრიბუტორების ექსელის გაპარსვა, ბაზაში შენახვა\">\r\n      <option name=\"closed\" value=\"true\" />\r\n      <created>1773610988309</created>\r\n      <option name=\"number\" value=\"00002\" />\r\n      <option name=\"presentableId\" value=\"LOCAL-00002\" />\r\n      <option name=\"project\" value=\"LOCAL\" />\r\n      <updated>1773610988309</updated>\r\n    </task>\r\n    <task id=\"LOCAL-00003\" summary=\"API ზე დაკავშირებული დისტრიბუტორების დამატება\">\r\n      <option name=\"closed\" value=\"true\" />\r\n      <created>1773653832343</created>\r\n      <option name=\"number\" value=\"00003\" />\r\n      <option name=\"presentableId\" value=\"LOCAL-00003\" />\r\n      <option name=\"project\" value=\"LOCAL\" />\r\n      <updated>1773653832344</updated>\r\n    </task>\r\n    <task id=\"LOCAL-00004\" summary=\"API ზე დაკავშირებული დისტრიბუტორების დამატება\">\r\n      <option name=\"closed\" value=\"true\" />\r\n      <created>1773653859608</created>\r\n      <option name=\"number\" value=\"00004\" />\r\n      <option name=\"presentableId\" value=\"LOCAL-00004\" />\r\n      <option name=\"project\" value=\"LOCAL\" />\r\n      <updated>1773653859608</updated>\r\n    </task>\r\n    <option name=\"localTasksCounter\" value=\"5\" />\r\n    <servers />\r\n  </component>\r\n  <component name=\"Vcs.Log.Tabs.Properties\">\r\n    <option name=\"RECENT_FILTERS\">\r\n      <map>\r\n        <entry key=\"Branch\">\r\n          <value>\r\n            <list>\r\n              <RecentGroup>\r\n                <option name=\"FILTER_VALUES\">\r\n                  <option value=\"master\" />\r\n                </option>\r\n              </RecentGroup>\r\n            </list>\r\n          </value>\r\n        </entry>\r\n      </map>\r\n    </option>\r\n    <option name=\"TAB_STATES\">\r\n      <map>\r\n        <entry key=\"MAIN\">\r\n          <value>\r\n            <State>\r\n              <option name=\"FILTERS\">\r\n                <map>\r\n                  <entry key=\"branch\">\r\n                    <value>\r\n                      <list>\r\n                        <option value=\"origin/master\" />\r\n                      </list>\r\n                    </value>\r\n                  </entry>\r\n                </map>\r\n              </option>\r\n            </State>\r\n          </value>\r\n        </entry>\r\n      </map>\r\n    </option>\r\n  </component>\r\n  <component name=\"VcsManagerConfiguration\">\r\n    <MESSAGE value=\"First commit\" />\r\n    <MESSAGE value=\"დისტრიბუტორების ექსელის გაპარსვა, ბაზაში შენახვა\" />\r\n    <MESSAGE value=\"API ზე დაკავშირებული დისტრიბუტორების დამატება\" />\r\n    <option name=\"LAST_COMMIT_MESSAGE\" value=\"API ზე დაკავშირებული დისტრიბუტორების დამატება\" />\r\n  </component>\r\n</project>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/workspace.xml b/.idea/workspace.xml
+--- a/.idea/workspace.xml	(revision e201dbc30b6331e0693457572895750860dd782b)
++++ b/.idea/workspace.xml	(date 1779019093985)
+@@ -4,7 +4,22 @@
+     <option name="autoReloadType" value="SELECTIVE" />
+   </component>
+   <component name="ChangeListManager">
+-    <list default="true" id="ade5e9ef-558a-4eaf-ba00-def5bdaaff40" name="Changes" comment="API ზე დაკავშირებული დისტრიბუტორების დამატება" />
++    <list default="true" id="ade5e9ef-558a-4eaf-ba00-def5bdaaff40" name="Changes" comment="API ზე დაკავშირებული დისტრიბუტორების დამატება">
++      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/Requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/Requirements.txt" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/api_clients/gitec_client.py" beforeDir="false" afterPath="$PROJECT_DIR$/api_clients/gitec_client.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/config/distributors.json" beforeDir="false" afterPath="$PROJECT_DIR$/config/distributors.json" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/config/settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/config/settings.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/database/database_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/database/database_manager.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/models/product.py" beforeDir="false" afterPath="$PROJECT_DIR$/models/product.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/parsers/excel_parser.py" beforeDir="false" afterPath="$PROJECT_DIR$/parsers/excel_parser.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/readme.md" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/services/product_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/services/product_service.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/utils/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/data_loader.py" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/utils/logger.py" beforeDir="false" afterPath="$PROJECT_DIR$/utils/logger.py" afterDir="false" />
++    </list>
+     <option name="SHOW_DIALOG" value="false" />
+     <option name="HIGHLIGHT_CONFLICTS" value="true" />
+     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+@@ -52,18 +67,87 @@
+   <component name="PropertiesComponent">{
+   &quot;keyToString&quot;: {
+     &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
++    &quot;Python.app.executor&quot;: &quot;Run&quot;,
++    &quot;Python.product.executor&quot;: &quot;Run&quot;,
++    &quot;Python.test-hashing.executor&quot;: &quot;Run&quot;,
+     &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
+     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+     &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
++    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
++    &quot;ai.playground.ignore.import.keys.banner.in.settings&quot;: &quot;true&quot;,
+     &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+     &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+     &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+     &quot;last_opened_file_path&quot;: &quot;C:/Users/User1/Desktop/Final Project&quot;,
+-    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;
++    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
++    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
++    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
++    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
++    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
++    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
++    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
++  },
++  &quot;keyToStringList&quot;: {
++    &quot;DatabaseDriversLRU&quot;: [
++      &quot;sqlite&quot;
++    ]
+   }
+ }</component>
+-  <component name="RunManager">
++  <component name="RecentsManager">
++    <key name="CopyFile.RECENT_KEYS">
++      <recent name="C:\Users\User1\Desktop\Final Project" />
++    </key>
++  </component>
++  <component name="RunManager" selected="Python.product">
++    <configuration default="true" type="PythonConfigurationType" factoryName="Python">
++      <option name="ENV_FILES" value="" />
++      <option name="INTERPRETER_OPTIONS" value="" />
++      <option name="PARENT_ENVS" value="true" />
++      <envs>
++        <env name="PYTHONUNBUFFERED" value="1" />
++      </envs>
++      <option name="SDK_HOME" value="" />
++      <option name="WORKING_DIRECTORY" value="" />
++      <option name="IS_MODULE_SDK" value="false" />
++      <option name="ADD_CONTENT_ROOTS" value="true" />
++      <option name="ADD_SOURCE_ROOTS" value="true" />
++      <module name="" />
++      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
++      <option name="RUN_TOOL" value="" />
++      <option name="SCRIPT_NAME" value="" />
++      <option name="PARAMETERS" value="" />
++      <option name="SHOW_COMMAND_LINE" value="false" />
++      <option name="EMULATE_TERMINAL" value="false" />
++      <option name="MODULE_MODE" value="false" />
++      <option name="REDIRECT_INPUT" value="false" />
++      <option name="INPUT_FILE" value="" />
++      <method v="2" />
++    </configuration>
++    <configuration name="app" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
++      <module name="Final_Project" />
++      <option name="ENV_FILES" value="" />
++      <option name="INTERPRETER_OPTIONS" value="" />
++      <option name="PARENT_ENVS" value="true" />
++      <envs>
++        <env name="PYTHONUNBUFFERED" value="1" />
++      </envs>
++      <option name="SDK_HOME" value="" />
++      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
++      <option name="IS_MODULE_SDK" value="true" />
++      <option name="ADD_CONTENT_ROOTS" value="true" />
++      <option name="ADD_SOURCE_ROOTS" value="true" />
++      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
++      <option name="RUN_TOOL" value="" />
++      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/app.py" />
++      <option name="PARAMETERS" value="" />
++      <option name="SHOW_COMMAND_LINE" value="false" />
++      <option name="EMULATE_TERMINAL" value="false" />
++      <option name="MODULE_MODE" value="false" />
++      <option name="REDIRECT_INPUT" value="false" />
++      <option name="INPUT_FILE" value="" />
++      <method v="2" />
++    </configuration>
+     <configuration name="main" type="PythonConfigurationType" factoryName="Python" nameIsGenerated="true">
+       <module name="Final Project" />
+       <option name="ENV_FILES" value="" />
+@@ -77,6 +161,7 @@
+       <option name="IS_MODULE_SDK" value="true" />
+       <option name="ADD_CONTENT_ROOTS" value="true" />
+       <option name="ADD_SOURCE_ROOTS" value="true" />
++      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+       <option name="RUN_TOOL" value="" />
+       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/main.py" />
+       <option name="PARAMETERS" value="" />
+@@ -87,10 +172,136 @@
+       <option name="INPUT_FILE" value="" />
+       <method v="2" />
+     </configuration>
++    <configuration name="product" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
++      <module name="Final_Project" />
++      <option name="ENV_FILES" value="" />
++      <option name="INTERPRETER_OPTIONS" value="" />
++      <option name="PARENT_ENVS" value="true" />
++      <envs>
++        <env name="PYTHONUNBUFFERED" value="1" />
++      </envs>
++      <option name="SDK_HOME" value="" />
++      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/models" />
++      <option name="IS_MODULE_SDK" value="true" />
++      <option name="ADD_CONTENT_ROOTS" value="true" />
++      <option name="ADD_SOURCE_ROOTS" value="true" />
++      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
++      <option name="RUN_TOOL" value="" />
++      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/models/product.py" />
++      <option name="PARAMETERS" value="" />
++      <option name="SHOW_COMMAND_LINE" value="false" />
++      <option name="EMULATE_TERMINAL" value="false" />
++      <option name="MODULE_MODE" value="false" />
++      <option name="REDIRECT_INPUT" value="false" />
++      <option name="INPUT_FILE" value="" />
++      <method v="2" />
++    </configuration>
++    <configuration name="test-hashing" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
++      <module name="Final_Project" />
++      <option name="ENV_FILES" value="" />
++      <option name="INTERPRETER_OPTIONS" value="" />
++      <option name="PARENT_ENVS" value="true" />
++      <envs>
++        <env name="PYTHONUNBUFFERED" value="1" />
++      </envs>
++      <option name="SDK_HOME" value="" />
++      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
++      <option name="IS_MODULE_SDK" value="true" />
++      <option name="ADD_CONTENT_ROOTS" value="true" />
++      <option name="ADD_SOURCE_ROOTS" value="true" />
++      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
++      <option name="RUN_TOOL" value="" />
++      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/test-hashing.py" />
++      <option name="PARAMETERS" value="" />
++      <option name="SHOW_COMMAND_LINE" value="false" />
++      <option name="EMULATE_TERMINAL" value="false" />
++      <option name="MODULE_MODE" value="false" />
++      <option name="REDIRECT_INPUT" value="false" />
++      <option name="INPUT_FILE" value="" />
++      <method v="2" />
++    </configuration>
++    <configuration default="true" type="Tox" factoryName="Tox">
++      <option name="ENV_FILES" value="" />
++      <option name="INTERPRETER_OPTIONS" value="" />
++      <option name="PARENT_ENVS" value="true" />
++      <option name="SDK_HOME" value="" />
++      <option name="WORKING_DIRECTORY" value="" />
++      <option name="IS_MODULE_SDK" value="false" />
++      <option name="ADD_CONTENT_ROOTS" value="true" />
++      <option name="ADD_SOURCE_ROOTS" value="true" />
++      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
++      <option name="RUN_TOOL" value="" />
++      <method v="2" />
++    </configuration>
++    <configuration default="true" type="docs" factoryName="Docutils task">
++      <option name="ENV_FILES" value="" />
++      <option name="INTERPRETER_OPTIONS" value="" />
++      <option name="PARENT_ENVS" value="true" />
++      <option name="SDK_HOME" value="" />
++      <option name="WORKING_DIRECTORY" value="" />
++      <option name="IS_MODULE_SDK" value="false" />
++      <option name="ADD_CONTENT_ROOTS" value="true" />
++      <option name="ADD_SOURCE_ROOTS" value="true" />
++      <module name="" />
++      <option name="RUN_TOOL" value="" />
++      <option name="docutils_input_file" value="" />
++      <option name="docutils_output_file" value="" />
++      <option name="docutils_params" value="" />
++      <option name="docutils_task" value="" />
++      <option name="docutils_open_in_browser" value="false" />
++      <method v="2" />
++    </configuration>
++    <configuration default="true" type="docs" factoryName="Sphinx task">
++      <option name="ENV_FILES" value="" />
++      <option name="INTERPRETER_OPTIONS" value="" />
++      <option name="PARENT_ENVS" value="true" />
++      <option name="SDK_HOME" value="" />
++      <option name="WORKING_DIRECTORY" value="" />
++      <option name="IS_MODULE_SDK" value="false" />
++      <option name="ADD_CONTENT_ROOTS" value="true" />
++      <option name="ADD_SOURCE_ROOTS" value="true" />
++      <module name="" />
++      <option name="RUN_TOOL" value="" />
++      <option name="docutils_input_file" value="" />
++      <option name="docutils_output_file" value="" />
++      <option name="docutils_params" value="" />
++      <option name="docutils_task" value="" />
++      <option name="docutils_open_in_browser" value="false" />
++      <method v="2" />
++    </configuration>
++    <configuration default="true" type="tests" factoryName="Doctests">
++      <option name="ENV_FILES" value="" />
++      <option name="INTERPRETER_OPTIONS" value="" />
++      <option name="PARENT_ENVS" value="true" />
++      <option name="SDK_HOME" value="" />
++      <option name="WORKING_DIRECTORY" value="" />
++      <option name="IS_MODULE_SDK" value="false" />
++      <option name="ADD_CONTENT_ROOTS" value="true" />
++      <option name="ADD_SOURCE_ROOTS" value="true" />
++      <module name="" />
++      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
++      <option name="RUN_TOOL" value="" />
++      <option name="SCRIPT_NAME" value="" />
++      <option name="CLASS_NAME" value="" />
++      <option name="METHOD_NAME" value="" />
++      <option name="FOLDER_NAME" value="" />
++      <option name="TEST_TYPE" value="TEST_SCRIPT" />
++      <option name="PATTERN" value="" />
++      <option name="USE_PATTERN" value="false" />
++      <method v="2" />
++    </configuration>
++    <recent_temporary>
++      <list>
++        <item itemvalue="Python.product" />
++        <item itemvalue="Python.test-hashing" />
++        <item itemvalue="Python.app" />
++      </list>
++    </recent_temporary>
+   </component>
+   <component name="SharedIndexes">
+     <attachedChunks>
+       <set>
++        <option value="bundled-js-predefined-d6986cc7102b-9b0f141eb926-JavaScript-PY-253.29346.308" />
+         <option value="bundled-python-sdk-ca5e2b39c7df-6e1f45a539f7-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-253.29346.308" />
+       </set>
+     </attachedChunks>
+@@ -102,6 +313,11 @@
+       <option name="number" value="Default" />
+       <option name="presentableId" value="Default" />
+       <updated>1773570056622</updated>
++      <workItem from="1777668486710" duration="2461000" />
++      <workItem from="1777908254450" duration="1152000" />
++      <workItem from="1777914401103" duration="941000" />
++      <workItem from="1777929957923" duration="653000" />
++      <workItem from="1779017022249" duration="2065000" />
+     </task>
+     <task id="LOCAL-00001" summary="First commit">
+       <option name="closed" value="true" />
+@@ -138,6 +354,9 @@
+     <option name="localTasksCounter" value="5" />
+     <servers />
+   </component>
++  <component name="TypeScriptGeneratedFilesManager">
++    <option name="version" value="3" />
++  </component>
+   <component name="Vcs.Log.Tabs.Properties">
+     <option name="RECENT_FILTERS">
+       <map>
+@@ -182,4 +401,8 @@
+     <MESSAGE value="API ზე დაკავშირებული დისტრიბუტორების დამატება" />
+     <option name="LAST_COMMIT_MESSAGE" value="API ზე დაკავშირებული დისტრიბუტორების დამატება" />
+   </component>
++  <component name="com.intellij.coverage.CoverageDataManagerImpl">
++    <SUITE FILE_PATH="coverage/Final_Project$test_hashing.coverage" NAME="test-hashing Coverage Results" MODIFIED="1777670463320" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
++    <SUITE FILE_PATH="coverage/Final_Project$product.coverage" NAME="product Coverage Results" MODIFIED="1777908442323" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/models" />
++  </component>
+ </project>
+\ No newline at end of file
+Index: Requirements.txt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>pandas\r\nopenpyxl\r\npython-dotenv
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/Requirements.txt b/Requirements.txt
+--- a/Requirements.txt	(revision e201dbc30b6331e0693457572895750860dd782b)
++++ b/Requirements.txt	(date 1773837309000)
+@@ -1,3 +1,7 @@
++streamlit
+ pandas
+ openpyxl
+-python-dotenv
+\ No newline at end of file
++streamlit-authenticator
++python-dotenv
++pyyaml
++requests
+\ No newline at end of file
