@@ -2,22 +2,31 @@
   "erc": {
     "category_col": "Category",
     "sub_category_col": "Sub-category",
-    "main_category_filter": "PC Components",
-    "sub_category_keywords": {
-      "Cooling": ["fan", "cooling", "cooler", "ქულერი"],
-      "Cases": ["computer case", "chassis", "tower", "ქეისი"],
-      "Processors": ["processor", "cpu"],
-      "Video Cards": ["video card", "graphic card", "vga"],
-      "Motherboards": ["motherboard", "mb"],
-      "Storage": ["ssd", "hdd", "solid state drive"],
-      "RAM": ["memory module", "ram"],
-      "PSU": ["power supply", "psu"]
-    },
     "name_col": "Name",
     "brand_col": "Brand",
     "price_cols": ["PROMO PRICE GEL", "PRICE GEL"],
     "rrp_cols": ["Promo RRP GEL", "RRP GEL"],
-    "quantity_col": "Quantity"
+    "quantity_col": "Quantity",
+    "main_category_filter": [
+      "PC Components",
+      "PC components",
+      "Monitors, Projectors",
+      "2E GAMING",
+      "Peripheral",
+      "Storage",
+      "Gaming Lifestyle",
+      "Accessories"
+    ],
+    "sub_category_keywords": {
+      "მაუსები": ["Mouse", "Mouse Pad", "Mice", "Мышь", "Мышка"],
+      "კლავიატურები": ["Keyboard", "Combo", "Клавиатура"],
+      "ყურსასმენები": ["Headset", "Headphone", "Speaker", "Наушники"],
+      "მაუსპედი": ["Mouse Pad", "Desktop Pad", "Laptop Pad", "Коврик"],
+      "სკამები/მაგიდები": ["Chairs", "Computer Table", "Table", "Chair", "Кресло"],
+      "მიკროფონები": ["Microphone", "Микрофон"],
+      "მონიტორები": ["Monitor", "Монитор"],
+      "მონიტორის აქსესუარები": ["Monitor Stand", "TV mount", "Monitor Lamp", "Mounting Kit"]
+    }
   },
   "oasis": {
     "category_col": "TYPE",

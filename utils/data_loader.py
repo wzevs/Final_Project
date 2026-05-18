@@ -33,13 +33,12 @@ def load_inventory_df():
     """ბაზიდან მონაცემების წაკითხვა (Read-Only)"""
     try:
         db = DatabaseManager()
-        service = ProductService(db)
-        df_raw = service.get_all_products()
+        # 🚀 პირდაპირ ვიღებთ ბაზიდან უკვე დაფორმატებულ, 7-სვეტიან მზა DataFrame-ს
+        df_raw = db.fetch_products_dataframe()
 
         if df_raw.empty:
             return pd.DataFrame()
 
-        df_raw.columns = ["კატეგორია", "დასახელება", "ფასი (₾)", "რაოდენობა", "მომწოდებელი"]
         return df_raw
     except Exception as e:
         st.error(f"ბაზიდან მონაცემების წაკითხვის შეცდომა: {e}")

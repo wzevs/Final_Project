@@ -14,7 +14,6 @@ class ExcelParser:
 
     def _load_config(self, name):
         try:
-            # ვიყენებთ აბსოლუტურ გზას ან ვამოწმებთ არსებობას
             config_path = "config/distributors.json"
             if not os.path.exists(config_path):
                 logger.error(f"კონფიგურაციის ფაილი არ არსებობს გზაზე: {config_path}")
@@ -43,16 +42,24 @@ class ExcelParser:
         sub_cat_low = sub_cat_raw.lower()
         combined_text = (cat_raw + " " + sub_cat_raw).lower()
 
-        # 1. ERC-ის შემთხვევა: მთავარი ფილტრი + Sub-category Mapping
+        # 🚀 1. ERC-ის განახლებული შემთხვევა: მხარს უჭერს როგორც ერთ კატეგორიას, ასევე კატეგორიების სიას
         if self.config.get("main_category_filter"):
-            if cat_raw == self.config["main_category_filter"]:
+            allowed_filters = self.config["main_category_filter"]
+            # თუ კონფიგურაციაში უბრალო ტექსტია, გადავაქციოთ სიად, რომ ლოგიკამ ერთნაირად იმუშაოს
+            if isinstance(allowed_filters, str):
+                allowed_filters = [allowed_filters]
+
+            if cat_raw in allowed_filters:
                 sub_cat_map = self.config.get("sub_category_keywords")
                 if sub_cat_map:
                     for formal_cat, kws in sub_cat_map.items():
                         if any(kw.lower() in sub_cat_low for kw in kws):
                             return formal_cat
-                # თუ Mapping-ში არ არის, ვაბრუნებთ გასუფთავებულ ორიგინალს
+                # თუ ქვე-კატეგორიის Mapping-ში კონკრეტული სიტყვა არ გვაქვს,
+                # მაინც არ ვკარგავთ პროდუქტს და ვაბრუნებთ ორიგინალ ქვე-კატეგორიას!
                 return sub_cat_raw if sub_cat_raw else "Other"
+
+            # თუ მიმდინარე მთავარი კატეგორია არცერთ დაშვებულ ფილტრში არ არის, მხოლოდ მაშინ გამოვტოვოთ
             return None
 
         # 2. Oasis, VRTX და სხვა: Keywords ძებნა კატეგორიებსა და სახლებში
@@ -63,7 +70,6 @@ class ExcelParser:
 
         # 3. დამატებითი დაზღვევა: ძებნა პროდუქტის სახელით (თუ კატეგორიით ვერ იპოვა)
         name_low = name_raw.lower()
-        # შეგვიძლია გამოვიყენოთ VRTX-ის keywords ბაზა სახელებისთვისაც
         all_keywords = self.config.get("keywords") or self.config.get("sub_category_keywords")
         if all_keywords:
             for formal_cat, kws in all_keywords.items():
@@ -75,7 +81,6 @@ class ExcelParser:
     def _clean_price(self, value):
         if pd.isna(value) or str(value).strip() == "":
             return 0.0
-        # ვტოვებთ მხოლოდ ციფრებს, წერტილს და მძიმეს (მძიმეს ვცვლით წერტილით)
         cleaned = str(value).replace(',', '.')
         cleaned = "".join(c for c in cleaned if c.isdigit() or c == '.')
         try:
@@ -89,16 +94,13 @@ class ExcelParser:
             return []
 
         try:
-            # ვკითხულობთ ექსელს
             df = pd.read_excel(self.file_path, engine="openpyxl")
-            # სვეტების გასუფთავება
             df.columns = [str(col).strip() for col in df.columns]
 
             products = []
             for _, row in df.iterrows():
                 category = self._identify_category(row)
 
-                # თუ კატეგორია ვერ დადგინდა, ამ პროდუქტს ვტოვებთ
                 if not category:
                     continue
 
@@ -129,7 +131,6 @@ class ExcelParser:
                     cleaned_q = re.sub(r'\D', '', raw_q)
                     quantity = int(cleaned_q) if cleaned_q else 0
                 else:
-                    # დეფოლტად 1, თუ სვეტი არ არსებობს (მაგ: Oasis)
                     quantity = 1
 
                 # ბრენდის ამოღება
@@ -147,7 +148,7 @@ class ExcelParser:
                     price=price,
                     rrp_price=rrp,
                     category=category,
-                    distributor=self.distributor_name  # ვამატებთ დისტრიბუტორსაც
+                    distributor=self.distributor_name
                 ))
 
             logger.info(f"{self.distributor_name}: წარმატებით დაპარსულია {len(products)} პროდუქტი.")

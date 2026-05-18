@@ -5,3 +5,4 @@ streamlit-authenticator
 python-dotenv
 pyyaml
 requests
+rapidfuzz
