@@ -1,0 +1,247 @@
+{
+  "fallback": "სხვა",
+  "groups": [
+    {
+      "id": "accessories",
+      "label": "აქსესუარები",
+      "icon": "🖱️",
+      "order": 1,
+      "categories": [
+        "მაუსები",
+        "კლავიატურები",
+        "ყურსასმენები",
+        "მიკროფონები",
+        "Microphones",
+        "მაუსპედი",
+        "Wrist Rest",
+        "Joystick",
+        "Web cameras",
+        "Speakers",
+        "Presenter et al",
+        "Smartphone Accessories",
+        "აქსესუარები",
+        "Accessories",
+        "Car Holder",
+        "Notebook Stand",
+        "Hub",
+        "Docking Station",
+        "VGA support",
+        "VGA stand",
+        "Socket Cover",
+        "Cable Holder + Hub",
+        "Protective Sleeve",
+        "Sleeve",
+        "Card Readers"
+      ],
+      "keywords": ["mouse", "keyboard", "headphone", "headset", "microphone", "speaker", "webcam", "joystick", "presenter", "wrist rest", "pad"]
+    },
+    {
+      "id": "monitors",
+      "label": "მონიტორები",
+      "icon": "🖥️",
+      "order": 2,
+      "categories": [
+        "მონიტორები",
+        "მონიტორის აქსესუარები"
+      ],
+      "keywords": ["monitor"]
+    },
+    {
+      "id": "computers",
+      "label": "კომპიუტერები",
+      "icon": "💻",
+      "order": 3,
+      "categories": [
+        "ლეპტოპები",
+        "დესკტოპები",
+        "Tablets",
+        "Handheld"
+      ],
+      "keywords": ["laptop", "notebook", "desktop", "tablet", "aio", "nuc"]
+    },
+    {
+      "id": "pc_components",
+      "label": "PC კომპონენტები",
+      "icon": "🔧",
+      "order": 4,
+      "categories": [
+        "პროცესორები",
+        "Processors",
+        "CPU",
+        "დედა დაფები",
+        "Motherboard",
+        "Motherboards",
+        "ვიდეო ბარათები",
+        "Video Cards",
+        "VGA",
+        "RAM",
+        "ოპერატიული",
+        "Storage",
+        "მყარი დისკები",
+        "SSD",
+        "External SSD",
+        "Flash Drive",
+        "SD Card",
+        "კვების ბლოკები",
+        "PSU",
+        "ქეისები",
+        "Cases",
+        "Computer Case",
+        "Computer case",
+        "ქულერები",
+        "Cooler",
+        "Cooling",
+        "Liquid Cooler",
+        "Case Fan",
+        "Case fan",
+        "Notebook Cooler",
+        "თერმოპასტა",
+        "Thermal Paste",
+        "ODD",
+        "PCI cards",
+        "Opticals",
+        "Server accessories"
+      ],
+      "keywords": ["processor", "cpu", "motherboard", "gpu", "video card", "ram", "memory", "ssd", "hdd", "psu", "power supply", "case", "cooler", "fan", "thermal"]
+    },
+    {
+      "id": "cables",
+      "label": "კაბელები და ადაპტერები",
+      "icon": "🔌",
+      "order": 5,
+      "categories": [
+        "Cable",
+        "Type-C Cables & Adapters",
+        "HDMI Cable & Adapter",
+        "Displayport Cable & Adapter",
+        "Network Cables",
+        "PC შიდა კაბელები",
+        "Audio cable & adapter",
+        "USB cable",
+        "POWER CORDS",
+        "Conector",
+        "DVI Cable & Adapter",
+        "Lightning",
+        "Adapter",
+        "USB Hub & Docking Station",
+        "Splitter & Switches",
+        "Cable Ties",
+        "Wi-Fi Adapter",
+        "USB lan & WIFI Adapter"
+      ],
+      "keywords": ["cable", "adapter", "hdmi", "displayport", "usb cable", "power cord", "connector", "splitter", "hub", "docking", "wifi", "lan"]
+    },
+    {
+      "id": "chargers",
+      "label": "დამტენები და ელემენტები",
+      "icon": "🔋",
+      "order": 6,
+      "categories": [
+        "Charger",
+        "USB POWER SUPPLIES",
+        "Elements/Chargers",
+        "Power Bank",
+        "Power banks",
+        "Power Adapter"
+      ],
+      "keywords": ["charger", "power bank", "power supply", "battery", "element"]
+    },
+    {
+      "id": "cleaning",
+      "label": "საწმენდი და მოვლა",
+      "icon": "🧹",
+      "order": 7,
+      "categories": [
+        "Cleaning Unit",
+        "Cleaning"
+      ],
+      "keywords": ["cleaning", "cleaner", "wipe", "dust"]
+    },
+    {
+      "id": "bags",
+      "label": "ჩანთები და ქეისები",
+      "icon": "🎒",
+      "order": 8,
+      "categories": [
+        "Notebook Bag",
+        "Notebook Backpack",
+        "Carrying Case",
+        "Travel Bag"
+      ],
+      "keywords": ["bag", "backpack", "case", "sleeve", "briefcase"]
+    },
+    {
+      "id": "network_ups",
+      "label": "ქსელი, UPS და დაცვა",
+      "icon": "🌐",
+      "order": 9,
+      "categories": [
+        "UPS",
+        "UPS Batteries",
+        "UPS Batteries cabinet",
+        "Surge Protector",
+        "Routers"
+      ],
+      "keywords": ["ups", "router", "surge", "network", "switch"]
+    },
+    {
+      "id": "printing",
+      "label": "ბეჭდვა",
+      "icon": "🖨️",
+      "order": 10,
+      "categories": [
+        "პრინტერები",
+        "Printers & Multifunction Devices",
+        "Cartridges"
+      ],
+      "keywords": ["printer", "cartridge", "toner", "multifunction", "mfp"]
+    },
+    {
+      "id": "projectors",
+      "label": "პროექტორები",
+      "icon": "📽️",
+      "order": 11,
+      "categories": [
+        "Projector",
+        "Projectors",
+        "Projector screens",
+        "Projector hangers"
+      ],
+      "keywords": ["projector"]
+    },
+    {
+      "id": "furniture",
+      "label": "ავეჯი და ოფისი",
+      "icon": "🪑",
+      "order": 12,
+      "categories": [
+        "სკამები/მაგიდები",
+        "Pillow",
+        "Set of wheels"
+      ],
+      "keywords": ["chair", "desk", "table", "stand", "furniture"]
+    },
+    {
+      "id": "yversy",
+      "label": "Yversy",
+      "icon": "🏪",
+      "order": 13,
+      "categories": [
+        "Yversy"
+      ],
+      "keywords": []
+    },
+    {
+      "id": "other",
+      "label": "სხვა",
+      "icon": "📦",
+      "order": 99,
+      "categories": [
+        "სხვა",
+        "Testers",
+        "Tool"
+      ],
+      "keywords": []
+    }
+  ]
+}

@@ -57,6 +57,18 @@ class GitecClient:
                 price_value = price_info.get("PriceValue", 0)
 
                 custom_props = item.get("CustomProperties", {})
+                sku = (
+                    item.get("Sku")
+                    or item.get("SKU")
+                    or item.get("Code")
+                    or item.get("Article")
+                    or custom_props.get("Sku")
+                    or custom_props.get("SKU")
+                    or custom_props.get("Code")
+                    or custom_props.get("Article")
+                    or ""
+                )
+                sku = str(sku).strip() if sku else ""
                 qty_raw = (
                         custom_props.get("Available Quantity") or
                         custom_props.get("Avaliable Quantity") or
@@ -77,7 +89,8 @@ class GitecClient:
                         quantity=quantity,
                         price=float(price_value) if price_value else 0.0,
                         rrp_price=0.0,
-                        category=category
+                        category=category,
+                        sku=sku,
                     )
                     products.append(p)
 

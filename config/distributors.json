@@ -1,8 +1,10 @@
 {
   "erc": {
+    "file_keywords": ["erc"],
     "category_col": "Category",
     "sub_category_col": "Sub-category",
     "name_col": "Name",
+    "model_col": "Model",
     "brand_col": "Brand",
     "price_cols": ["PROMO PRICE GEL", "PRICE GEL"],
     "rrp_cols": ["Promo RRP GEL", "RRP GEL"],
@@ -15,8 +17,18 @@
       "Peripheral",
       "Storage",
       "Gaming Lifestyle",
-      "Accessories"
+      "Accessories",
+      "Computers",
+      "Printing and Scanning"
     ],
+    "sub_category_allowlist": {
+      "Printing and Scanning": ["Printer", "Multifunction Printer"]
+    },
+    "sub_category_exact": {
+      "ლეპტოპები": ["Notebook"],
+      "დესკტოპები": ["Desktop PC"],
+      "პრინტერები": ["Printer", "Multifunction Printer"]
+    },
     "sub_category_keywords": {
       "მაუსები": ["Mouse", "Mouse Pad", "Mice", "Мышь", "Мышка"],
       "კლავიატურები": ["Keyboard", "Combo", "Клавиатура"],
@@ -29,40 +41,102 @@
     }
   },
   "oasis": {
+    "file_keywords": ["oasis"],
+    "sheet_name": "Price List",
     "category_col": "TYPE",
     "sub_category_col": "TYPE",
+    "type_map_only": true,
+    "type_map": {
+      "CPU": "Processors",
+      "COOLER": "Cooling",
+      "Graphic Card": "Video Cards",
+      "MOTHERBOARD": "Motherboards",
+      "PSU": "PSU",
+      "RAM": "RAM",
+      "SSD": "Storage",
+      "HDD": "Storage",
+      "FLASH MEMORY": "Storage",
+      "MICRO SD": "Storage",
+      "TV/MONITOR": "მონიტორები",
+      "Laptops": "ლეპტოპები",
+      "ACCESSORIES": "აქსესუარები"
+    },
+    "excluded_types": [
+      "NVR",
+      "Camera",
+      "Dash Camera",
+      "NETWORK",
+      "Switch",
+      "PoE switch",
+      "Wireless Router",
+      "PRINTER",
+      "Automatic pet feeder",
+      "Smart Door viewer",
+      "Visual Doorbel",
+      "Smart Lock",
+      "Smart Light Bulb"
+    ],
     "keywords": {
-      "Processors": ["cpu", "processor"],
-      "Cooling": ["cooler", "fan"],
-      "Video Cards": ["graphic card", "vga", "gpu"],
-      "Motherboards": ["motherboard", "mb"],
-      "PSU": ["psu", "power supply"],
-      "RAM": ["ram", "memory"],
-      "Storage": ["hdd", "ssd", "m.2"]
+      "Processors": ["cpu"],
+      "Cooling": ["cooler"],
+      "Video Cards": ["graphic card", "gpu", "vga"],
+      "Motherboards": ["motherboard"],
+      "PSU": ["psu"],
+      "RAM": ["ram"],
+      "Storage": ["ssd", "hdd", "m.2"],
+      "მონიტორები": ["tv/monitor", "monitor"],
+      "მაუსები": ["mouse"],
+      "კლავიატურები": ["keyboard"],
+      "ყურსასმენები": ["speaker", "headset", "headphone"]
     },
     "name_col": "PRODUCT NAME",
+    "model_col": "P/N",
     "brand_col": "Brand",
     "price_cols": ["GEL"],
     "rrp_cols": [],
-    "quantity_col": null
+    "quantity_col": null,
+    "quantity_default": 0
   },
   "vrtx": {
+    "file_keywords": ["vrtx", "vertex", "ვერტექს", "ფრაისლისთი"],
+    "header_row": 1,
+    "sku_from_name": true,
     "category_col": "კატეგორია",
     "sub_category_col": "ქვეკატეგორია",
-    "main_category_filter": null,
-    "keywords": {
-      "Processors": ["პროცესორები", "cpu"],
-      "Video Cards": ["ვიდეო დაფები", "vga", "gpu"],
-      "Motherboards": ["დედა დაფები", "motherboard"],
-      "PSU": ["კვების ბლოკები", "psu"],
-      "Cooling": ["ქულერები", "fan", "cooler"],
-      "Cases": ["ქეისები", "case"],
-      "Storage": ["მყარი დისკები", "ssd", "hdd", "nvme"]
+    "main_category_filter": [
+      "კომპიუტერის ნაწილები",
+      "მყარი დისკები",
+      "მონიტორები & ტელევიზორები"
+    ],
+    "sub_category_keywords": {
+      "პროცესორები": ["პროცესორები", "cpu"],
+      "ვიდეო ბარათები": ["ვიდეო დაფები", "vga", "gpu"],
+      "დედა დაფები": ["დედა დაფები", "motherboard"],
+      "კვების ბლოკები": ["კვების ბლოკები", "psu"],
+      "ქულერები": ["ქულერები", "fan", "cooler"],
+      "ქეისები": ["ქეისები", "case"],
+      "მყარი დისკები": ["ssd", "hdd", "nvme", "მყარი დისკები"],
+      "მონიტორები": ["მონიტორები", "monitor"],
+      "მაუსები": ["მაუსები", "mouse"],
+      "კლავიატურები": ["კლავიატურები", "keyboard"],
+      "ყურსასმენები": ["ყურსასმენები", "headset", "headphone"]
     },
     "name_col": "დასახელება",
     "brand_col": "ბრენდი",
     "price_cols": ["სტ. ფასი"],
     "rrp_cols": ["RRP ფასი"],
     "quantity_col": "რაოდენობა"
+  },
+  "yversy": {
+    "file_keywords": ["yversy"],
+    "default_category": "Yversy",
+    "category_col": "Product Name",
+    "sub_category_col": "Product Name",
+    "name_col": "Product Name",
+    "model_col": "Article",
+    "brand_col": "Brand",
+    "price_cols": ["Price"],
+    "rrp_cols": ["Default Price"],
+    "quantity_col": "Available Quantity"
   }
 }

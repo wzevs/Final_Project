@@ -4,6 +4,7 @@ import re
 import os
 from models.product import Product
 from utils.logger import logger
+from utils.sku_utils import extract_vrtx_sku_from_name
 
 
 class ExcelParser:
@@ -42,6 +43,19 @@ class ExcelParser:
         sub_cat_low = sub_cat_raw.lower()
         combined_text = (cat_raw + " " + sub_cat_raw).lower()
 
+        type_map = self.config.get("type_map")
+        if type_map:
+            type_val = cat_raw
+            excluded = self.config.get("excluded_types", [])
+            if type_val in excluded:
+                return None
+            if type_val in type_map:
+                mapped = type_map[type_val]
+                if mapped:
+                    return mapped
+            if self.config.get("type_map_only"):
+                return None
+
         # 🚀 1. ERC-ის განახლებული შემთხვევა: მხარს უჭერს როგორც ერთ კატეგორიას, ასევე კატეგორიების სიას
         if self.config.get("main_category_filter"):
             allowed_filters = self.config["main_category_filter"]
@@ -50,9 +64,20 @@ class ExcelParser:
                 allowed_filters = [allowed_filters]
 
             if cat_raw in allowed_filters:
+                allowlist = self.config.get("sub_category_allowlist", {}).get(cat_raw)
+                if allowlist and sub_cat_raw not in allowlist:
+                    return None
+
+                exact_map = self.config.get("sub_category_exact", {})
+                for formal_cat, values in exact_map.items():
+                    if sub_cat_raw in values or sub_cat_low in [v.lower() for v in values]:
+                        return formal_cat
+
                 sub_cat_map = self.config.get("sub_category_keywords")
                 if sub_cat_map:
                     for formal_cat, kws in sub_cat_map.items():
+                        if formal_cat in exact_map:
+                            continue
                         if any(kw.lower() in sub_cat_low for kw in kws):
                             return formal_cat
                 # თუ ქვე-კატეგორიის Mapping-ში კონკრეტული სიტყვა არ გვაქვს,
@@ -85,7 +110,7 @@ class ExcelParser:
         cleaned = "".join(c for c in cleaned if c.isdigit() or c == '.')
         try:
             return float(cleaned)
-        except:
+        except ValueError:
             return 0.0
 
     def parse(self) -> list[Product]:
@@ -94,15 +119,39 @@ class ExcelParser:
             return []
 
         try:
-            df = pd.read_excel(self.file_path, engine="openpyxl")
+            read_kwargs = {"engine": "openpyxl"}
+            if self.config.get("sheet_name"):
+                read_kwargs["sheet_name"] = self.config["sheet_name"]
+            if self.config.get("header_row") is not None:
+                read_kwargs["header"] = self.config["header_row"]
+
+            df = pd.read_excel(self.file_path, **read_kwargs)
             df.columns = [str(col).strip() for col in df.columns]
 
             products = []
             for _, row in df.iterrows():
-                category = self._identify_category(row)
+                name_col = self.config.get("name_col")
+                if name_col and name_col in row:
+                    name_low = str(row.get(name_col, "")).lower()
+                    if any(
+                        ex.lower() in name_low
+                        for ex in self.config.get("excluded_name_keywords", [])
+                    ):
+                        continue
 
-                if not category:
-                    continue
+                default_category = self.config.get("default_category")
+                if default_category:
+                    category = default_category
+                else:
+                    category = self._identify_category(row)
+                    if not category:
+                        if (
+                            not self.config.get("main_category_filter")
+                            and self.config.get("import_unclassified", True)
+                        ):
+                            category = "სხვა"
+                        else:
+                            continue
 
                 # --- ფასის ამოღება ---
                 price = 0.0
@@ -131,7 +180,7 @@ class ExcelParser:
                     cleaned_q = re.sub(r'\D', '', raw_q)
                     quantity = int(cleaned_q) if cleaned_q else 0
                 else:
-                    quantity = 1
+                    quantity = self.config.get("quantity_default", 1)
 
                 # ბრენდის ამოღება
                 brand_col = self.config.get("brand_col")
@@ -141,6 +190,16 @@ class ExcelParser:
                 name_col = self.config.get("name_col")
                 name = str(row.get(name_col, "No Name")).strip() if name_col in row else "No Name"
 
+                sku = ""
+                if self.config.get("sku_from_name"):
+                    sku = extract_vrtx_sku_from_name(name)
+                else:
+                    model_col = self.config.get("model_col")
+                    if model_col and model_col in row:
+                        raw_sku = row.get(model_col)
+                        if raw_sku is not None and str(raw_sku).strip().lower() not in ("", "nan"):
+                            sku = str(raw_sku).strip()
+
                 products.append(Product(
                     brand=brand,
                     name=name,
@@ -148,7 +207,8 @@ class ExcelParser:
                     price=price,
                     rrp_price=rrp,
                     category=category,
-                    distributor=self.distributor_name
+                    distributor=self.distributor_name,
+                    sku=sku,
                 ))
 
             logger.info(f"{self.distributor_name}: წარმატებით დაპარსულია {len(products)} პროდუქტი.")

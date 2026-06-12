@@ -57,9 +57,42 @@ class DatabaseManager:
                            CREATE UNIQUE INDEX IF NOT EXISTS idx_products_name_distributor
                                ON products (name, distributor)
                            """)
+            self._ensure_sku_column(cursor)
+            self._ensure_distributor_code_column(cursor)
             connection.commit()
         except Exception as e:
             logger.error(f"products ცხრილის შექმნის შეცდომა: {e}")
+        finally:
+            connection.close()
+
+    def _ensure_sku_column(self, cursor):
+        cursor.execute("PRAGMA table_info(products)")
+        columns = {row[1] for row in cursor.fetchall()}
+        if "sku" not in columns:
+            cursor.execute("ALTER TABLE products ADD COLUMN sku TEXT")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_products_sku ON products (sku)")
+
+    def _ensure_distributor_code_column(self, cursor):
+        cursor.execute("PRAGMA table_info(products)")
+        columns = {row[1] for row in cursor.fetchall()}
+        if "distributor_code" not in columns:
+            cursor.execute("ALTER TABLE products ADD COLUMN distributor_code TEXT")
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_products_distributor_code "
+                "ON products (distributor_code)"
+            )
+
+    def delete_products_by_distributor(self, distributor: str):
+        """შლის მომწოდებლის ყველა პროდუქტს — ძველი/ამოღებული ნივთების გასასუფთავებლად."""
+        connection = self._get_connection()
+        cursor = connection.cursor()
+        try:
+            cursor.execute("DELETE FROM products WHERE distributor = ?", (distributor,))
+            connection.commit()
+        except Exception as e:
+            connection.rollback()
+            logger.error(f"პროდუქტების წაშლის შეცდომა ({distributor}): {e}")
+            raise e
         finally:
             connection.close()
 
@@ -68,17 +101,23 @@ class DatabaseManager:
         connection = self._get_connection()
         cursor = connection.cursor()
         try:
-            # 🚀 INSERT OR REPLACE სრულად აგვარებს UNIQUE constraint-ის პრობლემას Live რეჟიმში.
-            # თუ პროდუქტი ახალია — ემატება, თუ არსებობს — ძველი იშლება და ახლდება ფასი/მარაგი.
             query = """
-                INSERT OR REPLACE INTO products (brand, name, quantity, price, rrp_price, category, distributor)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO products (
+                    brand, name, quantity, price, rrp_price, category, distributor, sku, distributor_code
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
 
-            data = [
-                (p.brand, p.name, p.quantity, p.price, p.rrp_price, p.category, distributor)
-                for p in products
-            ]
+            data = []
+            for p in products:
+                p.validate()
+                data.append(
+                    (
+                        p.brand, p.name, p.quantity, p.price, p.rrp_price,
+                        p.category, distributor, p.sku or "",
+                        getattr(p, "distributor_code", "") or "",
+                    )
+                )
 
             cursor.executemany(query, data)
             connection.commit()
@@ -93,10 +132,16 @@ class DatabaseManager:
         """მოაქვს ყველა პროდუქტი გლობალურად, რაც აუცილებელია უნივერსალური სახელით ძებნისთვის"""
         connection = self._get_connection()
         try:
-            query = "SELECT brand, name, quantity, price, rrp_price, category, distributor FROM products"
+            query = (
+                "SELECT brand, name, quantity, price, rrp_price, category, distributor, sku, "
+                "distributor_code FROM products"
+            )
             df = pd.read_sql_query(query, connection)
 
-            df.columns = ["ბრენდი", "დასახელება", "რაოდენობა", "ფასი (₾)", "RRP ფასი", "კატეგორია", "მომწოდებელი"]
+            df.columns = [
+                "ბრენდი", "დასახელება", "რაოდენობა", "ფასი (₾)",
+                "RRP ფასი", "კატეგორია", "მომწოდებელი", "SKU", "მომწოდებლის კოდი",
+            ]
 
             # მომწოდებლის სახელების დიდ ასოებში გადაყვანა
             df["მომწოდებელი"] = df["მომწოდებელი"].str.upper()

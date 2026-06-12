@@ -20,3 +20,12 @@ inventory.db
 # OS files
 .DS_Store
 Thumbs.db
+
+# დროებითი probe/audit ფაილები (აგენტის ტესტები)
+_*.json
+_inspect_out.txt
+
+# მონაცემები (ფასლისტები და დიაგნოსტიკა — ლოკალურად)
+data/distributor_files/*.xlsx
+data/distributor_files/*.xls
+data/*.csv

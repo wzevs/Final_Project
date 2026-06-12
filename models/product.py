@@ -10,6 +10,8 @@ class Product:
     rrp_price: float
     category: str
     distributor: str = "Unknown"
+    sku: str = ""
+    distributor_code: str = ""
 
     def validate(self):
         # სახელის ვალიდაცია

@@ -1,63 +1,113 @@
-#  PC Hardware Inventory & Price Comparison System
+# PC Hardware Inventory & Storera Sync
 
-ეს არის Python-ზე დაფუძნებული ავტომატიზებული სისტემა, რომელიც ახდენს კომპიუტერული ტექნიკის ინვენტარიზაციას და ფასების შედარებას სხვადასხვა მომწოდებლებისგან. სისტემა აერთიანებს მონაცემებს როგორც ლოკალური Excel ფაილებიდან (ERC, Oasis, Vertex), ასევე პირდაპირი API კავშირით (GITEC).
+Python/Streamlit აპლიკაცია კომპიუტერული ტექნიკის ინვენტარისთვის: მომწოდებლების ფასლისტების იმპორტი, ერთიანი SQLite ბაზა და Storera-ს ექსპორტის მარაგის სინქრონიზაცია.
 
-##  ძირითადი ფუნქციები
+## ძირითადი ფუნქციები
 
-* **Multi-Source Integration:** მონაცემების მიღება სხვადასხვა ფორმატით (.xlsx, .xls და REST API).
-* **Smart Filtering (Blacklist):** ჩაშენებული ფილტრაციის სისტემა, რომელიც ავტომატურად ბლოკავს არასაჭირო ნივთებს (ჩანთები, აქსესუარები, ზურგჩანთები).
-* **Automated Categorization:** პროდუქტების ავტომატური დახარისხება (პროცესორები, ვიდეო ბარათები, დედაპლატები და ა.შ.) საკვანძო სიტყვების მიხედვით.
-* **Unified Database:** ყველა მონაცემი ინახება სტრუქტურირებულად ერთიან SQLite მონაცემთა ბაზაში.
-* **Logging System:** დეტალური ლოგირება პროცესების მონიტორინგისთვის და შეცდომების დიაგნოსტიკისთვის.
+- **მრავალწყარო ინტეგრაცია:** Excel (ERC, Oasis, Yversy) + REST/SOAP API (VRTX, GITEC, Alta)
+- **Streamlit UI:** ფასლისტების ნახვა/ფილტრაცია კატეგორიის ჯგუფებით; Storera ექსელის სინქრონიზაცია
+- **SKU მეჩინგი:** `შიდა კოდი` ↔ მომწოდებლის SKU; `1C / FINA / FMG` ↔ VRTX `vrtx_code`
+- **მარაგი და აქტიურობა:** Storera-ში `რაოდენობა` და `აქტიური` (0 მარაგი → არ ჩანს საიტზე, რჩება ადმინში)
+- **კატეგორიის ჯგუფები:** ~13 ჯგუფი (`config/category_groups.json`) — UI-ში ჩართვა/გამორთვა
+- **ავტორიზაცია:** `app.py` — `streamlit-authenticator`; `main.py` — dev რეჟიმი ავტორიზაციის გარეშე
 
-## ️ პროექტის სტრუქტურა
+## მომწოდებლები
+
+| წყარო | ტიპი | კონფიგი / env |
+|--------|------|----------------|
+| ERC | Excel | `config/distributors.json` → `erc` |
+| Oasis | Excel | `oasis` |
+| Yversy | Excel | `yversy` (`default_category: Yversy`) |
+| VRTX | API | `VRTX_API_TOKEN` (Excel გამოტოვებულია, თუ token არის) |
+| GITEC | API | `GITEC_USERNAME`, `GITEC_PASSWORD` |
+| Alta | SOAP API | `ALTA_USERNAME`, `ALTA_PASSWORD` |
+
+ფაილები: `data/distributor_files/` — სახელში უნდა იყოს დისტრიბუტორის keyword (მაგ. `erc`, `oasis`, `yversy`).
+
+## პროექტის სტრუქტურა
 
 ```text
-├── api_clients/        # API კლიენტები (მაგ: GITEC)
-├── config/             # კონფიგურაციის ფაილები (distributors.json)
-├── data/               # ექსელების საცავი
-│   └── distributor_files/
-├── database/           # SQLite მენეჯერი
-├── models/             # მონაცემთა მოდელები (Product)
-├── parsers/            # Excel-ის პარსერები
-├── services/           # ბიზნეს ლოგიკა (ProductService)
-├── utils/              # დამხმარე ხელსაწყოები (Logger)
-├── main.py             # მთავარი გამშვები სკრიპტი
-└── requirements.txt    # საჭირო ბიბლიოთეკების სია
+├── api_clients/          # Alta, GITEC, VRTX კლიენტები
+├── config/
+│   ├── distributors.json # Excel პარსერის კონფიგი
+│   └── category_groups.json
+├── data/distributor_files/  # მომწოდებლების Excel (ლოკალურად)
+├── database/             # SQLite (inventory.db)
+├── models/                 # Product
+├── parsers/                # ExcelParser
+├── services/               # ProductService, StoreraService
+├── utils/                  # data_loader, sku_utils, category_groups, logger
+├── scripts/                # დიაგნოსტიკა (test_alta_api, compare_site_monitors...)
+├── app.py                  # Production UI + ავტორიზაცია
+├── main.py                 # Dev UI (ALLOW_DEV_NO_AUTH=true)
+├── .env.example
+└── Requirements.txt
+```
 
+## ინსტალაცია
 
- ინსტალაცია და გაშვება (Setup Guide)
-მიჰყევით ამ ნაბიჯებს სისტემის ახალ კომპიუტერზე ასამუშავებლად:
+**საჭიროა:** Python 3.10+
 
-1. პითონის მომზადება
-დარწმუნდით, რომ დაინსტალირებული გაქვთ Python 3.10 ან უფრო ახალი ვერსია.
-
-2. ვირტუალური გარემო
-Bash
-# შექმენით გარემო
+```bash
 python -m venv venv
 
-# გააქტიურეთ (Windows)
+# Windows
 venv\Scripts\activate
 
-# გააქტიურეთ (Mac/Linux)
+# Mac/Linux
 source venv/bin/activate
-3. დამოკიდებულებების ინსტალაცია
-Bash
-pip install -r requirements.txt
-(თუ requirements.txt არ გაქვთ, გაუშვით: pip install pandas openpyxl requests)
 
-4. მონაცემების მომზადება
-მოათავსეთ მომწოდებლების ფაილები data/distributor_files/ საქაღალდეში.
+pip install -r Requirements.txt
+```
 
-დარწმუნდით, რომ ფაილის სახელში ფიგურირებს დისტრიბუტორის სახელი (მაგ: erc_stock.xlsx).
+შექმენით `.env` ფაილი `.env.example`-ის მიხედვით (API credentials, `AUTH_COOKIE_KEY`, dev flag).
 
-5. გაშვება
-Bash
-python main.py data/distributor_files/
- სამომავლო გეგმები (Roadmap)
-[ ] Best Price Report: ფუნქცია, რომელიც ავტომატურად იპოვის ყველაზე დაბალ ფასს იდენტურ პროდუქტზე სხვადასხვა ბაზაში.
+მოათავსეთ მომწოდებლების `.xlsx` ფაილები `data/distributor_files/`-ში.
 
-[ ] Price Tracking: ფასების ცვლილების ისტორიის შენახვა და გრაფიკული ანალიზი.
+## გაშვება
 
-[ ] Web Dashboard: მარტივი ვებ-ინტერფეისი მონაცემების დასათვალიერებლად.
+**Production (ავტორიზაციით):**
+
+```bash
+streamlit run app.py
+```
+
+**Dev (მხოლოდ ლოკალურად, ავტორიზაციის გარეშე):**
+
+```bash
+# .env: ALLOW_DEV_NO_AUTH=true
+streamlit run main.py
+```
+
+## სინქრონიზაციის ნაკადი
+
+### 1. მომწოდებლები → ბაზა
+
+Sidebar → **„მონაცემების სინქრონიზაცია“** (ან პირველი გახსნისას ავტომატურად).
+
+რიგი: Excel → VRTX API → GITEC API → Alta API. თითო მომწოდებელზე ბაზა სრულად იხლება და ხელახლა ივსება.
+
+### 2. ბაზა → Storera
+
+ტაბი **„Storera“** → ატვირთე Storera ექსპორტი → **„სინქრონიზაცია“** → ჩამოტვირთე `storera_synced.xlsx` → ატვირთე Storera-ში.
+
+მეჩინგი თითო ხაზზე:
+
+1. `1C / FINA / FMG` → VRTX `vrtx_code`
+2. `შიდა კოდი` → მომწოდებლის SKU
+
+გამოტოვებული კატეგორიები (PC build): `სათამაშო/სარენდერო`, `პრემიალური`, `საოფისე`.
+
+**Storera ველების რეკომენდაცია:**
+
+| ველი | შიგთავსი |
+|------|----------|
+| შიდა კოდი | მწარმოებლის SKU / მოდელი |
+| 1C / FINA / FMG | VRTX კოდი (მაგ. `14086`) |
+
+## Roadmap
+
+- [ ] Best Price Dashboard — იგივე SKU-ზე მომწოდებლების შედარება
+- [ ] Alta `item` fallback — `1C / FINA / FMG` ↔ Alta შიდა კოდი
+- [ ] დაუსმეჩებელი პროდუქტების რიგი და SKU mapping მეხსიერება
+- [ ] ფასის ისტორია

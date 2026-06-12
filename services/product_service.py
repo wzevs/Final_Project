@@ -1,3 +1,4 @@
+import json
 import os
 import pandas as pd
 from parsers.excel_parser import ExcelParser
@@ -27,16 +28,27 @@ class ProductService:
         # ბლოკავს მხოლოდ აშკარა სერვისულ ჩანაწერებს
         return not any(garbage in name_low for garbage in self.garbage_keywords)
 
+    def _load_distributor_keywords(self) -> list[tuple[str, list[str]]]:
+        config_path = "config/distributors.json"
+        try:
+            with open(config_path, encoding="utf-8") as f:
+                configs = json.load(f)
+            return [
+                (name, cfg.get("file_keywords", [name]))
+                for name, cfg in configs.items()
+            ]
+        except Exception as e:
+            logger.error(f"დისტრიბუტორების კონფიგის წაკითხვის შეცდომა: {e}")
+            return []
+
     def _detect_distributor(self, file_name: str) -> str:
-        """ავტომატურად ამოიცნობს დისტრიბუტორს ფაილის სახელის მიხედვით"""
+        """ავტომატურად ამოიცნობს დისტრიბუტორს ფაილის სახელის მიხედვით (distributors.json)."""
         name_low = file_name.lower()
-        if "erc" in name_low:
-            return "erc"
-        elif "oasis" in name_low:
-            return "oasis"
-        elif "vrtx" in name_low:
-            return "vrtx"
-        return "default_distributor"
+        for distributor, keywords in self._load_distributor_keywords():
+            if any(kw.lower() in name_low for kw in keywords):
+                return distributor
+        logger.warning(f"მომწოდებელი ვერ ამოიცნობა ფაილის სახელიდან: {file_name}")
+        return "unknown"
 
     def import_from_excel(self, file_path: str, distributor: str = None):
         """ერთი კონკრეტული ექსელის ფაილის იმპორტი და ბაზაში შენახვა"""
@@ -50,9 +62,9 @@ class ProductService:
         products = parser.parse()
 
         if products:
-            # ატარებს ფილტრაციას (ახლა პერიფერიაც სუფთად ძვრება აქ)
             valid_products = [p for p in products if self.is_valid_component(p.name)]
             if valid_products:
+                self.db_manager.delete_products_by_distributor(distributor)
                 self.db_manager.save_products(valid_products, distributor)
                 logger.info(f"წარმატებით აისახა {len(valid_products)} პროდუქტი ბაზაში ({distributor}).")
             else:
@@ -60,32 +72,49 @@ class ProductService:
         else:
             logger.warning(f"ფაილიდან {file_name} მონაცემების წაკითხვა ვერ მოხერხდა (პარსერის შეცდომა).")
 
-    def import_all_from_folder(self, folder_path: str):
+    def import_all_from_folder(self, folder_path: str, skip_distributors: set[str] | None = None):
         """ავტომატურად ასკანირებს მთელ საქაღალდეს და აიმპორტებს ყველა .xlsx ფაილს"""
         if not os.path.exists(folder_path):
             logger.error(f"საქაღალდე ვერ მოიძებნა: {folder_path}")
             return
 
+        skip = {d.lower() for d in (skip_distributors or set())}
         files = [f for f in os.listdir(folder_path) if f.endswith('.xlsx') or f.endswith('.xls')]
         if not files:
             logger.warning(f"საქაღალდეში {folder_path} ექსელის ფაილები არ მოიძებნა.")
             return
 
         for file_name in files:
+            distributor = self._detect_distributor(file_name)
+            if distributor.lower() in skip:
+                logger.info(f"გამოტოვებულია {file_name} — {distributor} API-დან იტვირთება.")
+                continue
             full_path = os.path.join(folder_path, file_name)
             self.import_from_excel(full_path)
 
     def import_gitec_products(self, gitec_products):
         """ფილტრავს და ინახავს GITEC API-დან წამოღებულ პროდუქტებს"""
-        if not gitec_products:
+        self._import_api_products(gitec_products, "gitec", "GITEC")
+
+    def import_alta_products(self, alta_products):
+        """ფილტრავს და ინახავს Alta B2B API-დან წამოღებულ პროდუქტებს"""
+        self._import_api_products(alta_products, "alta", "Alta")
+
+    def import_vrtx_products(self, vrtx_products):
+        """ინახავს VRTX API-დან წამოღებულ პროდუქტებს"""
+        self._import_api_products(vrtx_products, "vrtx", "VRTX")
+
+    def _import_api_products(self, products, distributor_key: str, label: str):
+        if not products:
             return
 
-        valid_products = [p for p in gitec_products if self.is_valid_component(p.name)]
+        valid_products = [p for p in products if self.is_valid_component(p.name)]
         if valid_products:
-            self.db_manager.save_products(valid_products, "gitec")
-            logger.info(f"წარმატებით აისახა {len(valid_products)} პროდუქტი GITEC API-დან.")
+            self.db_manager.delete_products_by_distributor(distributor_key)
+            self.db_manager.save_products(valid_products, distributor_key)
+            logger.info(f"წარმატებით აისახა {len(valid_products)} პროდუქტი {label} API-დან.")
         else:
-            logger.warning("GITEC API-დან წამოღებული ყველა პროდუქტი დაიბლოკა.")
+            logger.warning(f"{label} API-დან წამოღებული ყველა პროდუქტი დაიბლოკა.")
 
     def get_all_products(self) -> pd.DataFrame:
         """კითხულობს ყველა პროდუქტს ბაზის ცენტრალიზებული მენეჯერის მეშვეობით"""
